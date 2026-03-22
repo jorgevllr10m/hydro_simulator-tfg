@@ -1,0 +1,49 @@
+# Backend utilizado para construir el proyecto
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hydro-simulator-tfg"
+version = "0.1.0"
+description = "Simulador hidrometeorológico espaciotemporal para la validación de modelos de escorrentía en cuencas reguladas"
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [
+    { name = "Jorge Villar Mier" }
+]
+
+# Dependencias del proyecto
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.11.0",
+]
+
+[project.scripts]
+hydro-sim = "simulator.cli.run:main"
+
+# Indica a setuptools dónde encontrar los archivos .py
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Indica donde se encuentran los archivos de test
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# Configuración de ruff
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+# Reglas utilizadas
+#   E -> errores de estilo
+#   F -> errores de código
+#   I -> imports
+[tool.ruff.lint]
+select = ["E", "F", "I"]

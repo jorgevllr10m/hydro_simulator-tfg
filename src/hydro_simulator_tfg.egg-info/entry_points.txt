@@ -1,0 +1,2 @@
+[console_scripts]
+hydro-sim = simulator.cli.run:main

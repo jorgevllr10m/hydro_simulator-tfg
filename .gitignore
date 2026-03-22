@@ -1,0 +1,23 @@
+# Cachés de Python
+__python__/
+*.py[cod]
+
+# Herramientas y tests
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Archivos de sistema / editor
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Salidas del proyecto
+outputs/
+
+# Cobertura
+.coverage
+htmlcov/
