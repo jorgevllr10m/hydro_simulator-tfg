@@ -1,5 +1,8 @@
+# Entorno virtual
+.venv/
+
 # Cachés de Python
-__python__/
+__pycache__/
 *.py[cod]
 
 # Herramientas y tests
@@ -21,3 +24,8 @@ outputs/
 # Cobertura
 .coverage
 htmlcov/
+
+# Artefactos de empaquetado
+*.egg-info/
+build/
+dist/

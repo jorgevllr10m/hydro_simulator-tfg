@@ -8,10 +8,10 @@ simulation:
   end_date: "2026-01-03"
   time_step_hours: 1
 
-# Spatial domain to be used.
+# Choose one from /domain
 domain:
   preset: "small"
 
-# General simulation scenario.
+# Choose one from /scenarios
 scenario:
   name: "baseline"

@@ -14,12 +14,15 @@ authors = [
 ]
 
 # Dependencias del proyecto
-dependencies = []
+dependencies = [
+    "pyyaml>=6.0",
+]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.11.0",
+    "pre-commit>=4.0.0",
 ]
 
 [project.scripts]
