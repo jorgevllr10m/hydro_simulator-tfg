@@ -6,7 +6,7 @@ from simulator.core.time import TimeDefinition
 def test_time_domain():
     # Define el tiempo de inicio y paso temporal
     start = datetime(2026, 1, 1, 0, 0, 0)
-    dt_seconds = 3600 * 24 * 31
+    dt_seconds = 3600 * 24 * 20
     n_steps = 6
 
     # Crea el dominio temporal

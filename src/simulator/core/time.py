@@ -98,3 +98,13 @@ class TimeDefinition:
             adjusted_values[i] *= seasonality_factors.get(season, 1.0)
 
         return adjusted_values
+
+    @property
+    def total_duration_seconds(self) -> int:
+        """Return total simulated duration in seconds."""
+        return self.dt_seconds * self.n_steps
+
+    @property
+    def total_duration(self) -> timedelta:
+        """Return total simulated duration as a timedelta."""
+        return timedelta(seconds=self.total_duration_seconds)
