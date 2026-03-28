@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 import xarray as xr
 
-from simulator.core.types import SimulationDomain, SimulationState
+from simulator.core.state import SimulationState
+from simulator.core.types import SimulationDomain
 
 TIME_DIM = "time"
 Y_DIM = "y"
@@ -46,6 +47,8 @@ VARIABLE_SPECS: dict[str, VariableSpec] = {
         units="mm/dt",
         description="Background or stratiform precipitation component",
     ),
+    # TODO en dataset su unidad es "1" y conceptualmente es una máscara, pero en state.py y contracts.py se valida como campo flotante
+    # 2D, no booleano. Cuando se implementen tormentas habrá que decidir si es estrictamente BoolArray.
     "storm_mask": VariableSpec(
         name="storm_mask",
         dims=(TIME_DIM, Y_DIM, X_DIM),
@@ -170,6 +173,7 @@ def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
     The resulting xarray.Dataset defines the standard coordinates,
     variables, dimensions and metadata for the simulator historical output.
     """
+    # TODO añadir coordenada sensor y variables obs_* cuando se integre domain.sensors.
     ny, nx = domain.shape
     n_steps = domain.n_steps
     n_reservoirs = len(domain.reservoirs)
@@ -269,22 +273,7 @@ def write_state_to_dataset(
     state: SimulationState,
     step: int | None = None,
 ) -> xr.Dataset:
-    """Write a SimulationState into the historical dataset at one time step.
-
-    Parameters
-    ----------
-    ds:
-        Historical simulation dataset.
-    state:
-        Current simulation state.
-    step:
-        Target time index. If None, state.step is used.
-
-    Returns
-    -------
-    xr.Dataset
-        The same dataset, updated in place and returned for convenience.
-    """
+    """Write a SimulationState into the historical dataset at one time step."""
     target_step = state.step if step is None else step
 
     ds["precipitation"][target_step, :, :] = state.precipitation
@@ -294,10 +283,28 @@ def write_state_to_dataset(
     ds["surface_runoff"][target_step, :, :] = state.surface_runoff
     ds["channel_flow"][target_step, :, :] = state.channel_flow
 
+    if state.background_precipitation is not None:
+        ds["background_precipitation"][target_step, :, :] = state.background_precipitation
+
+    if state.storm_mask is not None:
+        ds["storm_mask"][target_step, :, :] = state.storm_mask
+
+    if state.infiltration is not None:
+        ds["infiltration"][target_step, :, :] = state.infiltration
+
+    if state.subsurface_runoff is not None:
+        ds["subsurface_runoff"][target_step, :, :] = state.subsurface_runoff
+
+    if state.reservoir_inflow is not None and ds.sizes[RESERVOIR_DIM] > 0:
+        ds["reservoir_inflow"][target_step, :] = state.reservoir_inflow
+
     if state.reservoir_storage is not None and ds.sizes[RESERVOIR_DIM] > 0:
         ds["reservoir_storage"][target_step, :] = state.reservoir_storage
 
     if state.reservoir_release is not None and ds.sizes[RESERVOIR_DIM] > 0:
         ds["reservoir_release"][target_step, :] = state.reservoir_release
+
+    if state.reservoir_spill is not None and ds.sizes[RESERVOIR_DIM] > 0:
+        ds["reservoir_spill"][target_step, :] = state.reservoir_spill
 
     return ds

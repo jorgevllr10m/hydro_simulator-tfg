@@ -34,24 +34,16 @@ class TimeDefinition:
     def __post_init__(self):
         """Validate time parameters after initialization."""
         if self.dt_seconds <= 0:
-            raise ValueError(
-                f"Time step 'dt_seconds' must be a positive integer, got {self.dt_seconds}"
-            )
+            raise ValueError(f"Time step 'dt_seconds' must be a positive integer, got {self.dt_seconds}")
         if self.n_steps <= 0:
-            raise ValueError(
-                f"Number of steps 'n_steps' must be a positive integer, got {self.n_steps}"
-            )
+            raise ValueError(f"Number of steps 'n_steps' must be a positive integer, got {self.n_steps}")
         if self.calendar_type not in ["monthly", "seasonal"]:
-            raise ValueError(
-                f"Invalid calendar type {self.calendar_type}. Use 'monthly' or 'seasonal'."
-            )
+            raise ValueError(f"Invalid calendar type {self.calendar_type}. Use 'monthly' or 'seasonal'.")
 
     @property
     def timestamps(self) -> np.ndarray:
         """Generate an array of timestamps based on start time and time step."""
-        return np.array(
-            [self.start + timedelta(seconds=self.dt_seconds * i) for i in range(self.n_steps)]
-        )
+        return np.array([self.start + timedelta(seconds=self.dt_seconds * i) for i in range(self.n_steps)])
 
     @property
     def step_index(self) -> np.ndarray:
@@ -84,6 +76,7 @@ class TimeDefinition:
                 seasons.append("Fall")
         return np.array(seasons)
 
+    # TODO reemplazar los factores fijos de apply_seasonality por parámetros de configuración o escenario.
     def apply_seasonality(self, values: np.ndarray) -> np.ndarray:
         """Apply seasonality adjustments to a values array based on the season."""
         seasonality_factors = {

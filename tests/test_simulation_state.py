@@ -2,7 +2,7 @@ from datetime import datetime
 
 import numpy as np
 
-from simulator.core.types import SimulationState
+from simulator.core.state import SimulationState
 
 
 def test_spatial_state():

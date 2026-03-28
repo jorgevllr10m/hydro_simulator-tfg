@@ -3,12 +3,12 @@ from datetime import datetime
 import numpy as np
 
 from simulator.core.dataset import create_empty_dataset, write_state_to_dataset
+from simulator.core.state import SimulationState
 from simulator.core.time import TimeDefinition
 from simulator.core.types import (
     BasinDefinition,
     GridDefinition,
     SimulationDomain,
-    SimulationState,
     SpatialDomain,
 )
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -115,9 +114,7 @@ class SpatialDomain:
     def __post_init__(self) -> None:
         """Validate the consistency of grid and basin mask."""
         if self.grid.shape != self.basin.shape:
-            raise ValueError(
-                f"Grid shape {self.grid.shape} and basin mask shape {self.basin.shape} must match."
-            )
+            raise ValueError(f"Grid shape {self.grid.shape} and basin mask shape {self.basin.shape} must match.")
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -156,8 +153,8 @@ class SimulationDomain:
 
     spatial: SpatialDomain
     time: TimeDefinition
-    reservoirs: tuple[Any, ...] = ()
-    sensors: tuple[Any, ...] = ()
+    reservoirs: tuple[ReservoirDefinition, ...] = ()
+    sensors: tuple[SensorDefinition, ...] = ()
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -170,97 +167,58 @@ class SimulationDomain:
         return self.time.n_steps
 
 
-@dataclass
-class SimulationState:
-    """Dynamic state of the simulator at a single time step.
+@dataclass(frozen=True)
+class ReservoirDefinition:
+    """Static definition of a reservoir in the simulation domain."""
 
-    - Spatial fields use shape (ny, nx), i.e. (y, x)
-    - Vector-like reservoir fields use shape (n_reservoirs,)
-    - Observations are stored separately as generic mappings
-    """
+    # TODO validar que embalses y sensores caen dentro del grid del dominio. (types.py / futuro loader.py)
 
-    step: int
-    timestamp: datetime
-
-    precipitation: FloatArray
-    air_temperature: FloatArray
-    pet: FloatArray
-
-    soil_moisture: FloatArray
-    surface_runoff: FloatArray
-    channel_flow: FloatArray
-
-    reservoir_storage: FloatArray | None = None
-    reservoir_release: FloatArray | None = None
-    observations: dict[str, FloatArray] | None = None
+    name: str
+    cell_y: int
+    cell_x: int
+    capacity: float
+    initial_storage: float
 
     def __post_init__(self) -> None:
-        """Validate dynamic state fields."""
-        if not isinstance(self.step, int) or self.step < 0:
-            raise ValueError(f"'step' must be a non-negative integer, got {self.step!r}")
+        if not self.name:
+            raise ValueError("Reservoir 'name' must be a non-empty string.")
 
-        self._validate_spatial_field("precipitation", self.precipitation)
-        self._validate_spatial_field("air_temperature", self.air_temperature)
-        self._validate_spatial_field("pet", self.pet)
-        self._validate_spatial_field("soil_moisture", self.soil_moisture)
-        self._validate_spatial_field("surface_runoff", self.surface_runoff)
-        self._validate_spatial_field("channel_flow", self.channel_flow)
+        if not isinstance(self.cell_y, int) or self.cell_y < 0:
+            raise ValueError(f"'cell_y' must be a non-negative integer, got {self.cell_y!r}")
 
-        spatial_shape = self.precipitation.shape
-        spatial_fields = {
-            "air_temperature": self.air_temperature,
-            "pet": self.pet,
-            "soil_moisture": self.soil_moisture,
-            "surface_runoff": self.surface_runoff,
-            "channel_flow": self.channel_flow,
-        }
+        if not isinstance(self.cell_x, int) or self.cell_x < 0:
+            raise ValueError(f"'cell_x' must be a non-negative integer, got {self.cell_x!r}")
 
-        for name, value in spatial_fields.items():
-            if value.shape != spatial_shape:
-                raise ValueError(f"'{name}' must have shape {spatial_shape}, got {value.shape}")
+        if not isinstance(self.capacity, (int, float)) or self.capacity <= 0:
+            raise ValueError(f"'capacity' must be a positive number, got {self.capacity!r}")
 
-        if self.reservoir_storage is not None:
-            self._validate_vector_field("reservoir_storage", self.reservoir_storage)
+        if not isinstance(self.initial_storage, (int, float)) or self.initial_storage < 0:
+            raise ValueError(f"'initial_storage' must be a non-negative number, got {self.initial_storage!r}")
 
-        if self.reservoir_release is not None:
-            self._validate_vector_field("reservoir_release", self.reservoir_release)
+        if self.initial_storage > self.capacity:
+            raise ValueError(f"'initial_storage' ({self.initial_storage}) cannot exceed 'capacity' ({self.capacity}).")
 
-        if self.observations is not None:
-            if not isinstance(self.observations, dict):
-                raise TypeError(
-                    f"'observations' must be a dict[str, FloatArray] or None, "
-                    f"got {type(self.observations).__name__}"
-                )
-            for key, value in self.observations.items():
-                if not isinstance(key, str):
-                    raise TypeError(f"Observation keys must be strings, got {type(key).__name__}")
-                self._validate_array("observations[{!r}]".format(key), value)
 
-    @staticmethod
-    def _validate_array(name: str, value: FloatArray) -> None:
-        """Validate that a value is a NumPy float array."""
-        if not isinstance(value, np.ndarray):
-            raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-        if not np.issubdtype(value.dtype, np.floating):
-            raise TypeError(f"'{name}' must have a floating dtype, got {value.dtype}")
+@dataclass(frozen=True)
+class SensorDefinition:
+    """Static definition of an observation sensor in the simulation domain."""
 
-    @classmethod
-    def _validate_spatial_field(cls, name: str, value: FloatArray) -> None:
-        """Validate a 2D spatial field."""
-        cls._validate_array(name, value)
-        if value.ndim != 2:
-            raise ValueError(
-                f"'{name}' must be a 2D array with shape (ny, nx), got ndim={value.ndim}"
-            )
+    # TODO no valida que cell_y y cell_x caigan dentro del grid. Cuando se conecte config → loader → domain.
 
-    @classmethod
-    def _validate_vector_field(cls, name: str, value: FloatArray) -> None:
-        """Validate a 1D vector field."""
-        cls._validate_array(name, value)
-        if value.ndim != 1:
-            raise ValueError(f"'{name}' must be a 1D array, got ndim={value.ndim}")
+    name: str
+    sensor_type: str
+    cell_y: int
+    cell_x: int
 
-    @property
-    def spatial_shape(self) -> tuple[int, int]:
-        """Return the shape of the spatial state fields."""
-        return self.precipitation.shape
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("Sensor 'name' must be a non-empty string.")
+
+        if not self.sensor_type:
+            raise ValueError("Sensor 'sensor_type' must be a non-empty string.")
+
+        if not isinstance(self.cell_y, int) or self.cell_y < 0:
+            raise ValueError(f"'cell_y' must be a non-negative integer, got {self.cell_y!r}")
+
+        if not isinstance(self.cell_x, int) or self.cell_x < 0:
+            raise ValueError(f"'cell_x' must be a non-negative integer, got {self.cell_x!r}")
