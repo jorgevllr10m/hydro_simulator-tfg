@@ -38,6 +38,9 @@ def build_air_temperature_field(
     return build_uniform_spatial_field(domain, background_temperature_c)
 
 
+# TODO(phase3->phase4): replace the zero background field with a simple
+# stratiform/spatially correlated precipitation component when the refined
+# background field enters the next meteorological phase.
 def build_background_precipitation_field(
     domain: SimulationDomain,
 ) -> FloatArray:

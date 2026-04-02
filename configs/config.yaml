@@ -10,7 +10,7 @@ simulation:
 
 # Choose one from /domain
 domain:
-  preset: "small"
+  preset: "medium"
 
 # Choose one from /scenarios
 scenario:

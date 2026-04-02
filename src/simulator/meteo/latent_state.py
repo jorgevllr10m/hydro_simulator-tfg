@@ -137,7 +137,11 @@ class LatentEnvironmentState:
     convective_potential_index: float
 
     seasonality_factor: float
-    # TODO(phase2): decide whether scenario_moisture_factor remains diagnostic-only.
+
+    # Diagnostic-only field:
+    # the moisture scenario already affects the latent environment through
+    # wetness and regime biases, so this factor is kept for inspection and
+    # traceability rather than as an additional forcing term.
     scenario_moisture_factor: float
 
     def __post_init__(self) -> None:
@@ -488,7 +492,7 @@ class LatentEnvironmentModel:
         return shifts[self.config.moisture_scenario]
 
     def _scenario_moisture_factor(self) -> float:
-        """Return the multiplicative moisture factor associated with the scenario."""
+        """Return a diagnostic moisture factor associated with the selected scenario."""
         factors = {
             MoistureScenario.DRY: 0.85,
             MoistureScenario.NORMAL: 1.00,
