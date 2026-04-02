@@ -156,6 +156,51 @@ class SimulationDomain:
     reservoirs: tuple[ReservoirDefinition, ...] = ()
     sensors: tuple[SensorDefinition, ...] = ()
 
+    def __post_init__(self) -> None:
+        """Validate that static entities are consistent with the grid."""
+        ny, nx = self.shape
+
+        for reservoir in self.reservoirs:
+            if not isinstance(reservoir, ReservoirDefinition):
+                raise TypeError(f"'reservoirs' must contain only ReservoirDefinition objects, got {type(reservoir).__name__}")
+            self._validate_entity_cell_indices(
+                entity_kind="Reservoir",
+                entity_name=reservoir.name,
+                cell_y=reservoir.cell_y,
+                cell_x=reservoir.cell_x,
+                ny=ny,
+                nx=nx,
+            )
+
+        for sensor in self.sensors:
+            if not isinstance(sensor, SensorDefinition):
+                raise TypeError(f"'sensors' must contain only SensorDefinition objects, got {type(sensor).__name__}")
+            self._validate_entity_cell_indices(
+                entity_kind="Sensor",
+                entity_name=sensor.name,
+                cell_y=sensor.cell_y,
+                cell_x=sensor.cell_x,
+                ny=ny,
+                nx=nx,
+            )
+
+    @staticmethod
+    def _validate_entity_cell_indices(
+        *,
+        entity_kind: str,
+        entity_name: str,
+        cell_y: int,
+        cell_x: int,
+        ny: int,
+        nx: int,
+    ) -> None:
+        """Validate that an entity falls inside the domain grid."""
+        if not 0 <= cell_y < ny:
+            raise ValueError(f"{entity_kind} '{entity_name}' has cell_y={cell_y}, but valid y indices are [0, {ny - 1}]")
+
+        if not 0 <= cell_x < nx:
+            raise ValueError(f"{entity_kind} '{entity_name}' has cell_x={cell_x}, but valid x indices are [0, {nx - 1}]")
+
     @property
     def shape(self) -> tuple[int, int]:
         """Return the canonical spatial shape (ny, nx)."""
@@ -170,8 +215,6 @@ class SimulationDomain:
 @dataclass(frozen=True)
 class ReservoirDefinition:
     """Static definition of a reservoir in the simulation domain."""
-
-    # TODO validar que embalses y sensores caen dentro del grid del dominio. (types.py / futuro loader.py)
 
     name: str
     cell_y: int
@@ -202,8 +245,6 @@ class ReservoirDefinition:
 @dataclass(frozen=True)
 class SensorDefinition:
     """Static definition of an observation sensor in the simulation domain."""
-
-    # TODO no valida que cell_y y cell_x caigan dentro del grid. Cuando se conecte config → loader → domain.
 
     name: str
     sensor_type: str
