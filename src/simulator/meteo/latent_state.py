@@ -36,8 +36,9 @@ class MoistureScenario(str, Enum):
 class LatentEnvironmentConfig:
     """Configuration of the simplified latent meteorological environment."""
 
-    # * meteorology rules. They can be adjusted based on the observed results.
+    # TODO(phase2): revisit latent environment default parameters using validation metrics.
 
+    # * meteorology rules. They can be adjusted based on the observed results.
     random_seed: int = 1234
 
     initial_regime: MeteorologicalRegime = MeteorologicalRegime.TRANSITIONAL
@@ -136,6 +137,7 @@ class LatentEnvironmentState:
     convective_potential_index: float
 
     seasonality_factor: float
+    # TODO(phase2): decide whether scenario_moisture_factor remains diagnostic-only.
     scenario_moisture_factor: float
 
     def __post_init__(self) -> None:
@@ -291,6 +293,7 @@ class LatentEnvironmentModel:
         state: LatentEnvironmentState,
     ) -> StormEnvironmentInput:
         """Convert a latent state into an internal forcing view for storm generation."""
+        # TODO(phase2): tune storm_trigger_factor and storm_organization_factor after phase 3.
         # * factors that affect the generation of a storm
         storm_trigger_factor = _clamp01(
             0.55 * state.convective_potential_index + 0.30 * state.antecedent_wetness_index + 0.15 * state.seasonality_factor
@@ -328,6 +331,7 @@ class LatentEnvironmentModel:
         if self._rng.random() < self.config.regime_persistence:
             return previous_regime
 
+        # TODO(phase2): review regime transition weights once seasonal scenarios are validated.
         weights = {
             MeteorologicalRegime.STABLE_DRY: 1.0 + 0.35 * (1.0 - seasonality_factor) + self._stable_dry_scenario_bonus(),
             MeteorologicalRegime.TRANSITIONAL: 1.0,

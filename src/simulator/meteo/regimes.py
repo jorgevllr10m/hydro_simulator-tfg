@@ -46,6 +46,7 @@ class RegimeProfile:
             raise TypeError(f"'temperature_anomaly_c' must be numeric, got {type(self.temperature_anomaly_c).__name__}")
 
 
+# TODO(phase2): calibrate default regime profile values after storm generator integration.
 REGIME_PROFILES: dict[MeteorologicalRegime, RegimeProfile] = {
     MeteorologicalRegime.STABLE_DRY: RegimeProfile(
         cloudiness_index=0.15,  # * This regime tends to have a base cloudiness of 0.15

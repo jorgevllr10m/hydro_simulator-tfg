@@ -1,2 +1,2 @@
 # hydro_simulator-tfg
-Diseño e implementación de un simulador hidrometeorológico espaciotemporal para la validación de modelos de escorrentía en cuencas reguladas.
+Design and implementation of a spatiotemporal hydrometeorological simulator for the validation of runoff models in regulated basins
