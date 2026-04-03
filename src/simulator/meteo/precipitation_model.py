@@ -6,8 +6,9 @@ import numpy as np
 
 from simulator.core.contracts import MeteoInput, MeteoOutput
 from simulator.meteo.background_field import (
+    BackgroundFieldConfig,
+    BackgroundFieldModel,
     build_air_temperature_field,
-    build_background_precipitation_field,
 )
 from simulator.meteo.latent_state import (
     LatentEnvironmentConfig,
@@ -29,6 +30,7 @@ class StormPrecipitationConfig:
     birth: StormBirthConfig = field(default_factory=StormBirthConfig)
     lifecycle: StormLifecycleConfig = field(default_factory=StormLifecycleConfig)
     render: StormRenderConfig = field(default_factory=StormRenderConfig)
+    background: BackgroundFieldConfig = field(default_factory=BackgroundFieldConfig)
 
     random_seed: int = 4321
 
@@ -45,6 +47,9 @@ class StormPrecipitationConfig:
         if not isinstance(self.render, StormRenderConfig):
             raise TypeError(f"'render' must be a StormRenderConfig, got {type(self.render).__name__}")
 
+        if not isinstance(self.background, BackgroundFieldConfig):
+            raise TypeError(f"'background' must be a BackgroundFieldConfig, got {type(self.background).__name__}")
+
         if not isinstance(self.random_seed, int):
             raise TypeError(f"'random_seed' must be an int, got {type(self.random_seed).__name__}")
 
@@ -57,6 +62,11 @@ class StormStepDiagnostics:
     storm_environment: StormEnvironmentInput
     n_new_storms: int
     n_active_storms: int
+    background_activity_factor: float
+    precipitation_spell_index: float
+    band_reorganization_applied: bool
+    band_births_count: int
+    band_probability: float
 
 
 class StormPrecipitationModel:
@@ -81,6 +91,7 @@ class StormPrecipitationModel:
 
         self._storm_rng = np.random.default_rng(config.random_seed)
         self._latent_model = LatentEnvironmentModel(config.latent_environment)
+        self._background_model = BackgroundFieldModel(config.background)
 
         self._latest_latent_state: LatentEnvironmentState | None = None
         self._active_storms: list[StormCell] = []
@@ -111,6 +122,7 @@ class StormPrecipitationModel:
         """Reset internal state and RNGs to their initial reproducible state."""
         self._storm_rng = np.random.default_rng(self.config.random_seed)
         self._latent_model = LatentEnvironmentModel(self.config.latent_environment)
+        self._background_model = BackgroundFieldModel(self.config.background)
 
         self._latest_latent_state = None
         self._active_storms = []
@@ -144,13 +156,15 @@ class StormPrecipitationModel:
 
         self._drop_expired_storms()
 
-        new_storms = spawn_storms(
+        birth_result = spawn_storms(
             rng=self._storm_rng,
             next_storm_id=self._next_storm_id,
             domain=meteo_input.domain,
             env=storm_environment,
             config=self.config.birth,
         )
+        new_storms = birth_result.storms
+
         self._next_storm_id += len(new_storms)
 
         self._initialize_newborn_storms(new_storms)
@@ -163,7 +177,14 @@ class StormPrecipitationModel:
             render_config=self.config.render,
         )
 
-        background_precipitation = build_background_precipitation_field(meteo_input.domain)
+        background_precipitation = self._background_model.step(
+            domain=meteo_input.domain,
+            latent_state=latent_state,
+        )
+
+        background_state = self._background_model.latest_state
+        if background_state is None:
+            raise RuntimeError("Background field state was not updated after step().")
 
         precipitation = background_precipitation + storm_precipitation_mm_dt
 
@@ -184,6 +205,11 @@ class StormPrecipitationModel:
             storm_environment=storm_environment,
             n_new_storms=len(new_storms),
             n_active_storms=len(self._active_storms),
+            background_activity_factor=background_state.activity_factor,
+            precipitation_spell_index=latent_state.precipitation_spell_index,
+            band_reorganization_applied=birth_result.band_reorganization_applied,
+            band_births_count=birth_result.band_births_count,
+            band_probability=birth_result.band_probability,
         )
 
         self._advance_active_storms(meteo_input.domain.time.dt_seconds)

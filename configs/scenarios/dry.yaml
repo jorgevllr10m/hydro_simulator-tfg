@@ -1,0 +1,20 @@
+meteo:
+  latent_environment:
+    random_seed: 1201
+    initial_regime: stable_dry
+    thermal_scenario: warm
+    moisture_scenario: dry
+    regime_persistence: 0.90
+    spell_memory: 0.95
+
+  storm_birth:
+    expected_births_per_step: 0.45
+    mean_peak_intensity_mmph: 9.0
+    mean_duration_steps: 4
+    band_cluster_probability: 0.10
+
+  background:
+    enabled: true
+    random_seed: 2201
+    temporal_persistence: 0.80
+    max_intensity_mm_dt: 0.6

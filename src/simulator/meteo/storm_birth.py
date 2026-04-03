@@ -81,6 +81,13 @@ class StormBirthConfig:
 
     birth_margin_cells: int = 2
 
+    # Band / line organization (phase 4)
+    band_cluster_probability: float = 0.35
+    band_spacing_m: float = 6_000.0
+    band_position_jitter_m: float = 1_200.0
+    band_minor_axis_factor: float = 0.80
+    band_velocity_shared_weight: float = 0.70
+
     def __post_init__(self) -> None:
         _validate_non_negative_float("expected_births_per_step", self.expected_births_per_step)
         _validate_non_negative_int("max_new_storms_per_step", self.max_new_storms_per_step)
@@ -102,6 +109,31 @@ class StormBirthConfig:
         _validate_non_negative_float("orientation_jitter_deg", self.orientation_jitter_deg)
 
         _validate_non_negative_int("birth_margin_cells", self.birth_margin_cells)
+
+        _validate_non_negative_float("band_cluster_probability", self.band_cluster_probability)
+        if self.band_cluster_probability > 1.0:
+            raise ValueError(f"'band_cluster_probability' must be <= 1, got {self.band_cluster_probability}")
+
+        _validate_positive_float("band_spacing_m", self.band_spacing_m)
+        _validate_non_negative_float("band_position_jitter_m", self.band_position_jitter_m)
+
+        _validate_non_negative_float("band_minor_axis_factor", self.band_minor_axis_factor)
+        if self.band_minor_axis_factor > 1.0:
+            raise ValueError(f"'band_minor_axis_factor' must be <= 1, got {self.band_minor_axis_factor}")
+
+        _validate_non_negative_float("band_velocity_shared_weight", self.band_velocity_shared_weight)
+        if self.band_velocity_shared_weight > 1.0:
+            raise ValueError(f"'band_velocity_shared_weight' must be <= 1, got {self.band_velocity_shared_weight}")
+
+
+@dataclass(frozen=True)
+class StormBirthResult:
+    """Result of storm spawning for one simulation step."""
+
+    storms: list[StormCell]
+    band_reorganization_applied: bool
+    band_births_count: int
+    band_probability: float
 
 
 def compute_expected_births(
@@ -281,6 +313,113 @@ def _sample_velocity_components_mps(
     return (velocity_u_mps, velocity_v_mps)
 
 
+def _sample_band_angle_deg(
+    rng: np.random.Generator,
+    env: StormEnvironmentInput,
+    config: StormBirthConfig,
+) -> float:
+    """Sample a common band orientation, usually close to advection."""
+    advection_angle_deg = math.degrees(math.atan2(env.advection_v_mps, env.advection_u_mps)) % 180.0
+
+    # Strong organization -> tighter alignment around the advection direction.
+    band_jitter_deg = max(5.0, 0.5 * config.orientation_jitter_deg)
+    return float(rng.normal(advection_angle_deg, band_jitter_deg)) % 180.0
+
+
+def _reorganize_storms_as_band(
+    rng: np.random.Generator,
+    storms: list[StormCell],
+    domain: SimulationDomain,
+    env: StormEnvironmentInput,
+    config: StormBirthConfig,
+) -> list[StormCell]:
+    """Reposition and align a group of storms so they form a band-like structure."""
+    if len(storms) < 2:
+        return storms
+
+    anchor_x_m, anchor_y_m = _sample_initial_position_m(rng, domain, config)
+    band_angle_deg = _sample_band_angle_deg(rng, env, config)
+    band_angle_rad = math.radians(band_angle_deg)
+
+    dir_x = math.cos(band_angle_rad)
+    dir_y = math.sin(band_angle_rad)
+
+    # Perpendicular direction for cross-band jitter
+    normal_x = -dir_y
+    normal_y = dir_x
+
+    center_index = 0.5 * (len(storms) - 1)
+
+    shared_u_mps, shared_v_mps = _sample_velocity_components_mps(rng, env, config)
+
+    for idx, storm in enumerate(storms):
+        along_offset_m = (idx - center_index) * config.band_spacing_m
+        along_jitter_m = float(rng.normal(0.0, config.band_position_jitter_m))
+        cross_jitter_m = float(rng.normal(0.0, 0.5 * config.band_position_jitter_m))  # 0.5 x ... so that it
+        # still looks like a band.
+
+        storm.center_x_m = anchor_x_m + (along_offset_m + along_jitter_m) * dir_x + cross_jitter_m * normal_x
+        storm.center_y_m = anchor_y_m + (along_offset_m + along_jitter_m) * dir_y + cross_jitter_m * normal_y
+
+        storm.orientation_deg = float(rng.normal(band_angle_deg, max(3.0, 0.35 * config.orientation_jitter_deg))) % 180.0
+
+        storm.velocity_u_mps = (
+            config.band_velocity_shared_weight * shared_u_mps + (1.0 - config.band_velocity_shared_weight) * storm.velocity_u_mps
+        )
+        storm.velocity_v_mps = (
+            config.band_velocity_shared_weight * shared_v_mps + (1.0 - config.band_velocity_shared_weight) * storm.velocity_v_mps
+        )
+
+        storm.semi_minor_axis_m = min(
+            storm.semi_major_axis_m,
+            storm.semi_minor_axis_m * config.band_minor_axis_factor,
+        )
+
+    return storms
+
+
+def _maybe_reorganize_storms_as_band(
+    rng: np.random.Generator,
+    storms: list[StormCell],
+    domain: SimulationDomain,
+    env: StormEnvironmentInput,
+    config: StormBirthConfig,
+) -> StormBirthResult:
+    """Convert a same-step storm group into a band when organization is high enough."""
+    if len(storms) < 2:
+        return StormBirthResult(
+            storms=storms,
+            band_reorganization_applied=False,
+            band_births_count=0,
+            band_probability=0.0,
+        )
+
+    band_probability = config.band_cluster_probability * env.storm_organization_factor
+
+    if rng.random() >= band_probability:
+        return StormBirthResult(
+            storms=storms,
+            band_reorganization_applied=False,
+            band_births_count=0,
+            band_probability=band_probability,
+        )
+
+    reorganized_storms = _reorganize_storms_as_band(
+        rng=rng,
+        storms=storms,
+        domain=domain,
+        env=env,
+        config=config,
+    )
+
+    return StormBirthResult(
+        storms=reorganized_storms,
+        band_reorganization_applied=True,
+        band_births_count=len(reorganized_storms),
+        band_probability=band_probability,
+    )
+
+
 def spawn_storm(
     rng: np.random.Generator,
     *,
@@ -319,7 +458,7 @@ def spawn_storms(
     domain: SimulationDomain,
     env: StormEnvironmentInput,
     config: StormBirthConfig,
-) -> list[StormCell]:
+) -> StormBirthResult:
     """Sample and return all new storms born at the current step."""
     n_births = sample_birth_count(rng, env, config)
 
@@ -335,4 +474,10 @@ def spawn_storms(
             )
         )
 
-    return storms
+    return _maybe_reorganize_storms_as_band(
+        rng=rng,
+        storms=storms,
+        domain=domain,
+        env=env,
+        config=config,
+    )

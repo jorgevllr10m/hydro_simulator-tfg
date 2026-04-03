@@ -64,6 +64,12 @@ class LatentEnvironmentConfig:
     convective_memory: float = 0.70
     advection_memory: float = 0.70
 
+    # * Wet/dry spell memory
+    spell_memory: float = 0.88
+    spell_noise_std: float = 0.06
+    dry_spell_target: float = 0.5
+    wet_spell_target: float = 0.95
+
     dry_drift_per_step: float = 0.01
 
     thermal_scenario: ThermalScenario = ThermalScenario.NORMAL
@@ -94,6 +100,7 @@ class LatentEnvironmentConfig:
             "advection_speed_std_mps": self.advection_speed_std_mps,
             "advection_direction_std_deg": self.advection_direction_std_deg,
             "dry_drift_per_step": self.dry_drift_per_step,
+            "spell_noise_std": self.spell_noise_std,
         }
         for name, value in non_negative_fields.items():
             if not isinstance(value, (int, float)):
@@ -108,12 +115,20 @@ class LatentEnvironmentConfig:
             "cloudiness_memory": self.cloudiness_memory,
             "convective_memory": self.convective_memory,
             "advection_memory": self.advection_memory,
+            "spell_memory": self.spell_memory,
+            "dry_spell_target": self.dry_spell_target,
+            "wet_spell_target": self.wet_spell_target,
         }
         for name, value in normalized_fields.items():
             if not isinstance(value, (int, float)):
                 raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
             if not 0.0 <= float(value) <= 1.0:
                 raise ValueError(f"'{name}' must be within [0, 1], got {value}")
+
+        if self.dry_spell_target > self.wet_spell_target:
+            raise ValueError(
+                f"'dry_spell_target' must be <= 'wet_spell_target', got dry={self.dry_spell_target}, wet={self.wet_spell_target}"
+            )
 
         if not isinstance(self.prevailing_advection_direction_deg, (int, float)):
             raise TypeError(
@@ -133,6 +148,7 @@ class LatentEnvironmentState:
     advection: AdvectionField
 
     antecedent_wetness_index: float
+    precipitation_spell_index: float
     cloudiness_index: float
     convective_potential_index: float
 
@@ -165,6 +181,7 @@ class LatentEnvironmentState:
             "cloudiness_index": self.cloudiness_index,
             "convective_potential_index": self.convective_potential_index,
             "seasonality_factor": self.seasonality_factor,
+            "precipitation_spell_index": self.precipitation_spell_index,
         }
         for name, value in bounded_fields.items():
             if not isinstance(value, (int, float)):
@@ -265,6 +282,12 @@ class LatentEnvironmentModel:
             previous_state.antecedent_wetness_index if previous_state is not None else None,
         )
 
+        precipitation_spell_index = self._compute_precipitation_spell_index(
+            regime=regime,
+            wetness_index=antecedent_wetness_index,
+            previous_spell_index=(previous_state.precipitation_spell_index if previous_state is not None else None),
+        )
+
         cloudiness_index = self._compute_cloudiness(
             regime_profile.cloudiness_index,
             antecedent_wetness_index,
@@ -286,6 +309,7 @@ class LatentEnvironmentModel:
             background_temperature_c=background_temperature_c,
             advection=advection,
             antecedent_wetness_index=antecedent_wetness_index,
+            precipitation_spell_index=precipitation_spell_index,
             cloudiness_index=cloudiness_index,
             convective_potential_index=convective_potential_index,
             seasonality_factor=seasonality_factor,
@@ -299,21 +323,27 @@ class LatentEnvironmentModel:
         """Convert a latent state into an internal forcing view for storm generation."""
         # TODO(phase2): tune storm_trigger_factor and storm_organization_factor after phase 3.
         # * factors that affect the generation of a storm
+        spell_weighted_moisture = _clamp01(0.70 * state.antecedent_wetness_index + 0.30 * state.precipitation_spell_index)
+
         storm_trigger_factor = _clamp01(
-            0.55 * state.convective_potential_index + 0.30 * state.antecedent_wetness_index + 0.15 * state.seasonality_factor
+            0.50 * state.convective_potential_index
+            + 0.25 * state.antecedent_wetness_index
+            + 0.10 * state.precipitation_spell_index
+            + 0.15 * state.seasonality_factor
         )
 
         storm_organization_factor = _clamp01(
             0.50 * state.cloudiness_index
-            + 0.35 * state.antecedent_wetness_index
-            + 0.15 * self._regime_organization_bonus(state.regime)
+            + 0.30 * state.antecedent_wetness_index
+            + 0.10 * state.precipitation_spell_index
+            + 0.10 * self._regime_organization_bonus(state.regime)
         )
 
         return StormEnvironmentInput(
             regime=state.regime,
             storm_trigger_factor=storm_trigger_factor,
             storm_organization_factor=storm_organization_factor,
-            moisture_availability=state.antecedent_wetness_index,
+            moisture_availability=spell_weighted_moisture,
             advection_u_mps=state.advection_u_mps,
             advection_v_mps=state.advection_v_mps,
             background_temperature_c=state.background_temperature_c,
@@ -418,6 +448,58 @@ class LatentEnvironmentModel:
             - self.config.dry_drift_per_step
         )
         return _clamp01(updated_wetness)
+
+    def _compute_precipitation_spell_index(
+        self,
+        *,
+        regime: MeteorologicalRegime,
+        wetness_index: float,
+        previous_spell_index: float | None,
+    ) -> float:
+        """Compute a smooth wet/dry spell index in [0, 1].
+
+        Interpretation
+        --------------
+        - values near 0 -> dry spell
+        - values near 1 -> wet spell
+
+        The target spell depends on:
+        - the current regime
+        - the current antecedent wetness
+        - the user-facing moisture scenario
+        and evolves with temporal memory.
+        """
+        regime_target = self._regime_spell_target(regime)
+
+        wetness_target = self.config.dry_spell_target + wetness_index * (self.config.wet_spell_target - self.config.dry_spell_target)
+
+        target_spell_index = _clamp01(0.60 * regime_target + 0.40 * wetness_target + self._scenario_spell_shift())
+
+        if previous_spell_index is None:
+            return target_spell_index
+
+        noisy_target = _clamp01(target_spell_index + float(self._rng.normal(0.0, self.config.spell_noise_std)))
+
+        return _clamp01(self.config.spell_memory * previous_spell_index + (1.0 - self.config.spell_memory) * noisy_target)
+
+    def _regime_spell_target(self, regime: MeteorologicalRegime) -> float:
+        """Return the baseline wet/dry spell tendency associated with a regime."""
+        targets = {
+            MeteorologicalRegime.STABLE_DRY: 0.10,
+            MeteorologicalRegime.TRANSITIONAL: 0.45,
+            MeteorologicalRegime.CONVECTIVE: 0.55,
+            MeteorologicalRegime.FRONTAL_PERSISTENT: 0.85,
+        }
+        return targets[regime]
+
+    def _scenario_spell_shift(self) -> float:
+        """Return a small additive shift for the wet/dry spell tendency."""
+        shifts = {
+            MoistureScenario.DRY: -0.10,
+            MoistureScenario.NORMAL: 0.0,
+            MoistureScenario.WET: 0.10,
+        }
+        return shifts[self.config.moisture_scenario]
 
     def _compute_cloudiness(
         self,

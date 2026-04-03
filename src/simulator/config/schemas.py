@@ -168,6 +168,8 @@ class LatentEnvironmentOverrideConfig(BaseModel):
     initial_regime: MeteorologicalRegime | None = Field(None, description="Initial weather regime")
     thermal_scenario: ThermalScenario | None = Field(None, description="Thermal scenario")
     moisture_scenario: MoistureScenario | None = Field(None, description="Moisture scenario")
+    regime_persistence: float | None = Field(None, ge=0.0, le=1.0, description="Persistence of the weather regime")
+    spell_memory: float | None = Field(None, ge=0.0, le=1.0, description="Temporal memory of wet/dry spell state")
 
 
 class StormBirthOverrideConfig(BaseModel):
@@ -178,10 +180,40 @@ class StormBirthOverrideConfig(BaseModel):
         ge=0.0,
         description="Baseline expected number of new storms per step",
     )
-    max_new_storms_per_step: int | None = Field(
+    mean_peak_intensity_mmph: float | None = Field(
         None,
-        ge=0,
-        description="Maximum number of new storms per step",
+        gt=0.0,
+        description="Mean mature-stage peak rainfall intensity [mm/h]",
+    )
+    mean_duration_steps: int | None = Field(
+        None,
+        gt=0,
+        description="Mean storm duration in simulation steps",
+    )
+    band_cluster_probability: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Probability of reorganizing same-step births into a band",
+    )
+
+
+class BackgroundFieldOverrideConfig(BaseModel):
+    """Optional scenario overrides for the background precipitation field."""
+
+    enabled: bool | None = Field(None, description="Whether the background precipitation field is enabled")
+    random_seed: int | None = Field(None, description="Random seed for the background field")
+
+    temporal_persistence: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Temporal persistence of the background spatial pattern",
+    )
+    max_intensity_mm_dt: float | None = Field(
+        None,
+        ge=0.0,
+        description="Reference maximum intensity of the background component [mm/dt]",
     )
 
 
@@ -190,6 +222,7 @@ class MeteoScenarioConfig(BaseModel):
 
     latent_environment: LatentEnvironmentOverrideConfig = Field(default_factory=LatentEnvironmentOverrideConfig)
     storm_birth: StormBirthOverrideConfig = Field(default_factory=StormBirthOverrideConfig)
+    background: BackgroundFieldOverrideConfig = Field(default_factory=BackgroundFieldOverrideConfig)
 
 
 class ScenarioConfig(BaseModel):

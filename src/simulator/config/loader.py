@@ -22,6 +22,7 @@ from simulator.core.types import (
     SimulationDomain,
     SpatialDomain,
 )
+from simulator.meteo.background_field import BackgroundFieldConfig
 from simulator.meteo.latent_state import LatentEnvironmentConfig
 from simulator.meteo.precipitation_model import StormPrecipitationConfig
 from simulator.meteo.storm_birth import StormBirthConfig
@@ -142,7 +143,7 @@ class LoadedConfig:
         )
 
     def build_storm_precipitation_config(self) -> StormPrecipitationConfig:
-        """Build internal phase-3 meteorology config from scenario overrides.
+        """Build internal meteorology config from scenario overrides.
 
         Defaults are defined in the runtime dataclasses themselves.
         The scenario file only provides optional overrides.
@@ -153,13 +154,16 @@ class LoadedConfig:
         """
         latent_environment_overrides = self.scenario.meteo.latent_environment.model_dump(exclude_none=True)
         storm_birth_overrides = self.scenario.meteo.storm_birth.model_dump(exclude_none=True)
+        background_overrides = self.scenario.meteo.background.model_dump(exclude_none=True)
 
         latent_environment = LatentEnvironmentConfig(**latent_environment_overrides)
         storm_birth = StormBirthConfig(**storm_birth_overrides)
+        background = BackgroundFieldConfig(**background_overrides)
 
         return StormPrecipitationConfig(
             latent_environment=latent_environment,
             birth=storm_birth,
+            background=background,
         )
 
 
