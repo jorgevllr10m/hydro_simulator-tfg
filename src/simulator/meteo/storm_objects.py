@@ -4,17 +4,24 @@ import math
 from dataclasses import dataclass
 
 
-def _validate_numeric(
+def _validate_any_numeric(
+    name: str,
+    value: int | float,
+) -> float:
+    """Validate a numeric scalar and return it as float."""
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
+    return float(value)
+
+
+def _validate_non_negative_numeric(
     name: str,
     value: int | float,
     *,
     strictly_positive: bool = False,
 ) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-
-    numeric_value = float(value)
+    """Validate a non-negative numeric scalar and return it as float."""
+    numeric_value = _validate_any_numeric(name, value)
 
     if strictly_positive:
         if numeric_value <= 0.0:
@@ -60,8 +67,8 @@ class StormCell:
         if self.storm_id < 0:
             raise ValueError(f"'storm_id' must be >= 0, got {self.storm_id}")
 
-        self.center_x_m = _validate_numeric("center_x_m", self.center_x_m)
-        self.center_y_m = _validate_numeric("center_y_m", self.center_y_m)
+        self.center_x_m = _validate_any_numeric("center_x_m", self.center_x_m)
+        self.center_y_m = _validate_any_numeric("center_y_m", self.center_y_m)
 
         # Velocity components may be negative, so they are validated separately.
         if not isinstance(self.velocity_u_mps, (int, float)):
@@ -71,14 +78,14 @@ class StormCell:
         self.velocity_u_mps = float(self.velocity_u_mps)
         self.velocity_v_mps = float(self.velocity_v_mps)
 
-        self.semi_major_axis_m = _validate_numeric("semi_major_axis_m", self.semi_major_axis_m, strictly_positive=True)
-        self.semi_minor_axis_m = _validate_numeric("semi_minor_axis_m", self.semi_minor_axis_m, strictly_positive=True)
+        self.semi_major_axis_m = _validate_non_negative_numeric("semi_major_axis_m", self.semi_major_axis_m, strictly_positive=True)
+        self.semi_minor_axis_m = _validate_non_negative_numeric("semi_minor_axis_m", self.semi_minor_axis_m, strictly_positive=True)
 
         if not isinstance(self.orientation_deg, (int, float)):
             raise TypeError(f"'orientation_deg' must be numeric, got {type(self.orientation_deg).__name__}")
         self.orientation_deg = float(self.orientation_deg) % 180.0
 
-        self.peak_intensity_mmph = _validate_numeric(
+        self.peak_intensity_mmph = _validate_non_negative_numeric(
             "peak_intensity_mmph",
             self.peak_intensity_mmph,
             strictly_positive=True,
@@ -138,7 +145,7 @@ class StormCell:
         - center position using constant advection over dt_seconds
         - age_steps by exactly one discrete simulation step
         """
-        dt_seconds = _validate_numeric("dt_seconds", dt_seconds, strictly_positive=True)
+        dt_seconds = _validate_non_negative_numeric("dt_seconds", dt_seconds, strictly_positive=True)
 
         self.center_x_m += self.velocity_u_mps * dt_seconds
         self.center_y_m += self.velocity_v_mps * dt_seconds
