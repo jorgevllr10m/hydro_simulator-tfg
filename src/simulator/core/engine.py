@@ -79,13 +79,19 @@ def merge_module_outputs(
         pet=energy_output.pet,
         background_precipitation=meteo_output.background_precipitation,
         storm_mask=meteo_output.storm_mask,
+        aet=energy_output.aet,
+        shortwave_radiation=energy_output.shortwave_radiation,
+        net_radiation=energy_output.net_radiation,
+        antecedent_storage=energy_output.antecedent_storage,
+        antecedent_relative=energy_output.antecedent_relative,
+        antecedent_overflow=energy_output.antecedent_overflow,
         soil_moisture=hydro_output.soil_moisture,
         infiltration=hydro_output.infiltration,
         surface_runoff=hydro_output.surface_runoff,
         subsurface_runoff=hydro_output.subsurface_runoff,
         channel_flow=hydro_output.channel_flow,
         reservoir_inflow=None,  # TODO reservoir_inflow cuando se implemente el acoplamiento real hydro → reservoirs
-        # (cotinue) ese campo tendrá que venir de una salida hidrológica o de una función de enrutamiento/acoplamiento
+        # (continue) ese campo tendrá que venir de una salida hidrológica o de una función de enrutamiento/acoplamiento
         reservoir_storage=(reservoir_output.reservoir_storage if reservoir_output is not None else None),
         reservoir_release=(reservoir_output.reservoir_release if reservoir_output is not None else None),
         reservoir_spill=(reservoir_output.reservoir_spill if reservoir_output is not None else None),

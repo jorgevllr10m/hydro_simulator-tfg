@@ -157,6 +157,7 @@ class DomainPresetConfig(BaseModel):
         return value
 
 
+# * Meteo module
 class LatentEnvironmentOverrideConfig(BaseModel):
     """Optional scenario overrides for the latent meteorological environment.
 
@@ -225,7 +226,57 @@ class MeteoScenarioConfig(BaseModel):
     background: BackgroundFieldOverrideConfig = Field(default_factory=BackgroundFieldOverrideConfig)
 
 
+# * Energy module
+class PETOverrideConfig(BaseModel):
+    """Optional scenario overrides for the simplified PET model."""
+
+    pet_multiplier: float | None = Field(
+        None,
+        ge=0.0,
+        description="Scenario multiplier applied to PET",
+    )
+
+
+class AntecedentOverrideConfig(BaseModel):
+    """Optional scenario overrides for the antecedent-water availability store."""
+
+    capacity_mm: float | None = Field(
+        None,
+        gt=0.0,
+        description="Maximum antecedent-water storage capacity [mm]",
+    )
+    initial_relative: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Initial relative filling of the antecedent store [0-1]",
+    )
+    wetting_efficiency: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of precipitation that recharges the antecedent store [0-1]",
+    )
+
+
+class EnergyScenarioConfig(BaseModel):
+    """Energy-balance overrides contained in a scenario file."""
+
+    latitude_deg: float | None = Field(
+        None,
+        ge=-90.0,
+        le=90.0,
+        description="Synthetic latitude used by the solar-geometry model [deg]",
+    )
+    pet: PETOverrideConfig = Field(default_factory=PETOverrideConfig)
+    antecedent: AntecedentOverrideConfig = Field(default_factory=AntecedentOverrideConfig)
+
+
+# -------
+
+
 class ScenarioConfig(BaseModel):
     """Schema of configs/scenarios/*.yaml files."""
 
     meteo: MeteoScenarioConfig = Field(default_factory=MeteoScenarioConfig)
+    energy: EnergyScenarioConfig = Field(default_factory=EnergyScenarioConfig)

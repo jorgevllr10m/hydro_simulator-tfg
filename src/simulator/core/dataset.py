@@ -61,11 +61,48 @@ VARIABLE_SPECS: dict[str, VariableSpec] = {
         units="degC",
         description="Near-surface air temperature",
     ),
+    # Energy
     "pet": VariableSpec(
         name="pet",
         dims=(TIME_DIM, Y_DIM, X_DIM),
         units="mm/dt",
         description="Potential evapotranspiration per simulation time step",
+    ),
+    "aet": VariableSpec(
+        name="aet",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="mm/dt",
+        description="Actual evapotranspiration per simulation time step",
+    ),
+    "shortwave_radiation": VariableSpec(
+        name="shortwave_radiation",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="W/m2",
+        description="Incoming shortwave radiation at the surface",
+    ),
+    "net_radiation": VariableSpec(
+        name="net_radiation",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="MJ/m2/dt",
+        description="Net radiation available during the simulation time step",
+    ),
+    "antecedent_storage": VariableSpec(
+        name="antecedent_storage",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="mm",
+        description="Simplified antecedent-water storage",
+    ),
+    "antecedent_relative": VariableSpec(
+        name="antecedent_relative",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="1",
+        description="Antecedent-water storage normalized to [0, 1]",
+    ),
+    "antecedent_overflow": VariableSpec(
+        name="antecedent_overflow",
+        dims=(TIME_DIM, Y_DIM, X_DIM),
+        units="mm/dt",
+        description="Excess antecedent-water input above storage capacity",
     ),
     # Hydrology
     "soil_moisture": VariableSpec(
@@ -197,7 +234,7 @@ def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
         domain.spatial.basin.mask.astype(bool),
         dims=VARIABLE_SPECS["basin_mask"].dims,
     )
-
+    # Meteo
     ds["precipitation"] = xr.DataArray(
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["precipitation"].dims,
@@ -214,10 +251,36 @@ def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["air_temperature"].dims,
     )
+    # Energy
     ds["pet"] = xr.DataArray(
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["pet"].dims,
     )
+    ds["aet"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["aet"].dims,
+    )
+    ds["shortwave_radiation"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["shortwave_radiation"].dims,
+    )
+    ds["net_radiation"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["net_radiation"].dims,
+    )
+    ds["antecedent_storage"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["antecedent_storage"].dims,
+    )
+    ds["antecedent_relative"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["antecedent_relative"].dims,
+    )
+    ds["antecedent_overflow"] = xr.DataArray(
+        _empty_spatial_time_array(n_steps, ny, nx),
+        dims=VARIABLE_SPECS["antecedent_overflow"].dims,
+    )
+    # Hydrology
     ds["soil_moisture"] = xr.DataArray(
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["soil_moisture"].dims,
@@ -288,6 +351,24 @@ def write_state_to_dataset(
 
     if state.storm_mask is not None:
         ds["storm_mask"][target_step, :, :] = state.storm_mask
+
+    if state.aet is not None:
+        ds["aet"][target_step, :, :] = state.aet
+
+    if state.shortwave_radiation is not None:
+        ds["shortwave_radiation"][target_step, :, :] = state.shortwave_radiation
+
+    if state.net_radiation is not None:
+        ds["net_radiation"][target_step, :, :] = state.net_radiation
+
+    if state.antecedent_storage is not None:
+        ds["antecedent_storage"][target_step, :, :] = state.antecedent_storage
+
+    if state.antecedent_relative is not None:
+        ds["antecedent_relative"][target_step, :, :] = state.antecedent_relative
+
+    if state.antecedent_overflow is not None:
+        ds["antecedent_overflow"][target_step, :, :] = state.antecedent_overflow
 
     if state.infiltration is not None:
         ds["infiltration"][target_step, :, :] = state.infiltration

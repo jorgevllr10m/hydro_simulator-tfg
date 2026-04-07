@@ -31,6 +31,14 @@ class SimulationState:
 
     background_precipitation: FloatArray | None = None
     storm_mask: FloatArray | None = None
+
+    aet: FloatArray | None = None
+    shortwave_radiation: FloatArray | None = None
+    net_radiation: FloatArray | None = None
+    antecedent_storage: FloatArray | None = None
+    antecedent_relative: FloatArray | None = None
+    antecedent_overflow: FloatArray | None = None
+
     infiltration: FloatArray | None = None
     subsurface_runoff: FloatArray | None = None
 
@@ -59,6 +67,24 @@ class SimulationState:
         if self.storm_mask is not None:
             self._validate_spatial_field("storm_mask", self.storm_mask)
 
+        if self.aet is not None:
+            self._validate_spatial_field("aet", self.aet)
+
+        if self.shortwave_radiation is not None:
+            self._validate_spatial_field("shortwave_radiation", self.shortwave_radiation)
+
+        if self.net_radiation is not None:
+            self._validate_spatial_field("net_radiation", self.net_radiation)
+
+        if self.antecedent_storage is not None:
+            self._validate_spatial_field("antecedent_storage", self.antecedent_storage)
+
+        if self.antecedent_relative is not None:
+            self._validate_spatial_field("antecedent_relative", self.antecedent_relative)
+
+        if self.antecedent_overflow is not None:
+            self._validate_spatial_field("antecedent_overflow", self.antecedent_overflow)
+
         if self.infiltration is not None:
             self._validate_spatial_field("infiltration", self.infiltration)
 
@@ -77,6 +103,12 @@ class SimulationState:
         optional_spatial_fields = {
             "background_precipitation": self.background_precipitation,
             "storm_mask": self.storm_mask,
+            "aet": self.aet,
+            "shortwave_radiation": self.shortwave_radiation,
+            "net_radiation": self.net_radiation,
+            "antecedent_storage": self.antecedent_storage,
+            "antecedent_relative": self.antecedent_relative,
+            "antecedent_overflow": self.antecedent_overflow,
             "infiltration": self.infiltration,
             "subsurface_runoff": self.subsurface_runoff,
         }

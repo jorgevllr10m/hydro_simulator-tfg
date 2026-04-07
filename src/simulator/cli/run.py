@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from simulator.config.loader import load_config
-from simulator.core.contracts import MeteoInput, MeteoOutput
+from simulator.core.contracts import EnergyInput, EnergyOutput, MeteoInput, MeteoOutput
 from simulator.core.dataset import create_empty_dataset
+from simulator.energy.model import EnergyBalanceModel
 from simulator.meteo.precipitation_model import StormPrecipitationModel
 
 
@@ -28,20 +29,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_meteo_output_to_dataset(
+def _write_meteo_energy_output_to_dataset(
     *,
     ds,
     meteo_output: MeteoOutput,
+    energy_output: EnergyOutput,
     step: int,
 ) -> None:
-    """Write only meteorological outputs into the historical dataset.
-
-    Current phase-3 runner executes only the meteorology module, so we write
-    only the variables that are truly produced by that module and leave the
-    rest of the dataset untouched (still NaN from initialization).
-    """
+    """Write meteorological and energy-balance outputs into the historical dataset."""
     ds["precipitation"][step, :, :] = meteo_output.precipitation
     ds["air_temperature"][step, :, :] = meteo_output.air_temperature
+    ds["pet"][step, :, :] = energy_output.pet
+    ds["aet"][step, :, :] = energy_output.aet
+    ds["shortwave_radiation"][step, :, :] = energy_output.shortwave_radiation
+    ds["net_radiation"][step, :, :] = energy_output.net_radiation
+    ds["antecedent_storage"][step, :, :] = energy_output.antecedent_storage
+    ds["antecedent_relative"][step, :, :] = energy_output.antecedent_relative
+    ds["antecedent_overflow"][step, :, :] = energy_output.antecedent_overflow
 
     if meteo_output.background_precipitation is not None:
         ds["background_precipitation"][step, :, :] = meteo_output.background_precipitation
@@ -55,7 +59,12 @@ def _write_summary_csv(
     rows: list[dict[str, object]],
     output_path: Path,
 ) -> None:
-    """Write step diagnostics into a CSV file."""
+    """Write step diagnostics into a CSV file.
+
+    CSV is formatted for spreadsheet tools using:
+    - ';' as field separator
+    - ',' as decimal separator for float values
+    """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not rows:
@@ -63,10 +72,17 @@ def _write_summary_csv(
 
     fieldnames = list(rows[0].keys())
 
+    def _format_csv_value(value: object) -> object:
+        if isinstance(value, float):
+            return f"{value:.6f}".replace(".", ",")
+        return value
+
+    formatted_rows = [{key: _format_csv_value(value) for key, value in row.items()} for row in rows]
+
     with output_path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(formatted_rows)
 
 
 def _save_dataset(ds, *, output_dir: Path) -> Path:
@@ -253,6 +269,11 @@ def main() -> None:
     domain = loaded.build_simulation_domain()
     meteo_config = loaded.build_storm_precipitation_config()
     meteo_model = StormPrecipitationModel(meteo_config)
+    energy_config = loaded.build_energy_balance_config()
+    energy_model = EnergyBalanceModel(
+        energy_config,
+        shape=domain.shape,
+    )
 
     run_output_dir = loaded.run_output_dir
     run_output_dir.mkdir(parents=True, exist_ok=True)
@@ -285,13 +306,22 @@ def main() -> None:
         )
 
         meteo_output = meteo_model.step(meteo_input)
-        _write_meteo_output_to_dataset(
+
+        energy_input = EnergyInput(
+            domain=domain,
+            step=step,
+            timestamp=timestamp,
+            precipitation=meteo_output.precipitation,
+            air_temperature=meteo_output.air_temperature,
+        )
+        energy_output = energy_model.step(energy_input)
+
+        _write_meteo_energy_output_to_dataset(
             ds=ds,
             meteo_output=meteo_output,
+            energy_output=energy_output,
             step=step,
         )
-        # TODO(phase4+): replace the meteorology-only dataset writing path with the
-        # full module pipeline once energy/hydrology outputs are available.
 
         diagnostics = meteo_model.latest_diagnostics
         assert diagnostics is not None
@@ -313,7 +343,7 @@ def main() -> None:
         summary_rows.append(
             {
                 "step": step,
-                "timestamp": timestamp.isoformat(),
+                "timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"),
                 "regime": diagnostics.latent_state.regime.value,
                 "new_storms": diagnostics.n_new_storms,
                 "tracked_storms": diagnostics.n_active_storms,
@@ -329,6 +359,13 @@ def main() -> None:
                 "band_probability": diagnostics.band_probability,
                 "storm_mask_active_cells": int(0 if meteo_output.storm_mask is None else (meteo_output.storm_mask > 0.0).sum()),
                 "air_temperature_mean_c": float(meteo_output.air_temperature.mean()),
+                "pet_mean_mm_dt": float(energy_output.pet.mean()),
+                "aet_mean_mm_dt": float(energy_output.aet.mean()),
+                "shortwave_radiation_mean_w_m2": float(energy_output.shortwave_radiation.mean()),
+                "net_radiation_mean_mj_m2_dt": float(energy_output.net_radiation.mean()),
+                "antecedent_storage_mean_mm": float(energy_output.antecedent_storage.mean()),
+                "antecedent_relative_mean": float(energy_output.antecedent_relative.mean()),
+                "antecedent_overflow_sum_mm_dt": float(energy_output.antecedent_overflow.sum()),
             }
         )
 
@@ -339,12 +376,15 @@ def main() -> None:
             f"tracked={diagnostics.n_active_storms} | "
             f"band={int(diagnostics.band_reorganization_applied)} | "
             f"band_births={diagnostics.band_births_count} | "
-            f"precip_max={meteo_output.precipitation.max():.3f} mm/dt"
+            f"precip_max={meteo_output.precipitation.max():.3f} mm/dt | "
+            f"pet_mean={energy_output.pet.mean():.3f} mm/dt | "
+            f"aet_mean={energy_output.aet.mean():.3f} mm/dt | "
+            f"ant_rel_mean={energy_output.antecedent_relative.mean():.3f}"
         )
 
     dataset_path = _save_dataset(ds, output_dir=run_output_dir)
 
-    summary_csv_path = run_output_dir / "meteo_summary.csv"
+    summary_csv_path = run_output_dir / "meteo_energy_summary.csv"
     _write_summary_csv(
         rows=summary_rows,
         output_path=summary_csv_path,

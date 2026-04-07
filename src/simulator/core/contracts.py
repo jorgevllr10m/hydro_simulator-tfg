@@ -53,22 +53,39 @@ class MeteoOutput:
 
 @dataclass(frozen=True)
 class EnergyInput:
-    """Typed input contract for the energy/PET module."""
+    """Typed input contract for the energy-balance / PET module."""
 
     domain: SimulationDomain
     step: int
     timestamp: datetime
+    precipitation: FloatArray
     air_temperature: FloatArray
+
+    def __post_init__(self) -> None:
+        SimulationState._validate_spatial_field("precipitation", self.precipitation)
+        SimulationState._validate_spatial_field("air_temperature", self.air_temperature)
 
 
 @dataclass(frozen=True)
 class EnergyOutput:
-    """Typed output contract for the energy/PET module."""
+    """Typed output contract for the energy-balance module."""
 
     pet: FloatArray
+    aet: FloatArray
+    shortwave_radiation: FloatArray
+    net_radiation: FloatArray
+    antecedent_storage: FloatArray
+    antecedent_relative: FloatArray
+    antecedent_overflow: FloatArray
 
     def __post_init__(self) -> None:
         SimulationState._validate_spatial_field("pet", self.pet)
+        SimulationState._validate_spatial_field("aet", self.aet)
+        SimulationState._validate_spatial_field("shortwave_radiation", self.shortwave_radiation)
+        SimulationState._validate_spatial_field("net_radiation", self.net_radiation)
+        SimulationState._validate_spatial_field("antecedent_storage", self.antecedent_storage)
+        SimulationState._validate_spatial_field("antecedent_relative", self.antecedent_relative)
+        SimulationState._validate_spatial_field("antecedent_overflow", self.antecedent_overflow)
 
 
 @dataclass(frozen=True)

@@ -22,6 +22,9 @@ from simulator.core.types import (
     SimulationDomain,
     SpatialDomain,
 )
+from simulator.energy.antecedent import AntecedentConfig
+from simulator.energy.model import EnergyBalanceConfig
+from simulator.energy.pet import PETConfig
 from simulator.meteo.background_field import BackgroundFieldConfig
 from simulator.meteo.latent_state import LatentEnvironmentConfig
 from simulator.meteo.precipitation_model import StormPrecipitationConfig
@@ -142,6 +145,7 @@ class LoadedConfig:
             sensors=sensors,
         )
 
+    # * Build meteo module config
     def build_storm_precipitation_config(self) -> StormPrecipitationConfig:
         """Build internal meteorology config from scenario overrides.
 
@@ -164,6 +168,35 @@ class LoadedConfig:
             latent_environment=latent_environment,
             birth=storm_birth,
             background=background,
+        )
+
+    # * Build energy module config
+    def build_energy_balance_config(self) -> EnergyBalanceConfig:
+        """Build internal energy config from scenario overrides.
+
+        Defaults are defined in the runtime dataclasses themselves.
+        The scenario file only provides optional overrides.
+
+        This means:
+        - omitted YAML fields do not need to be written
+        - omitted YAML fields fall back to runtime defaults
+        """
+        energy = self.scenario.energy
+
+        pet_overrides = energy.pet.model_dump(exclude_none=True)
+        antecedent_overrides = energy.antecedent.model_dump(exclude_none=True)
+
+        pet = PETConfig(**pet_overrides)
+        antecedent = AntecedentConfig(**antecedent_overrides)
+
+        energy_overrides: dict[str, Any] = {}
+        if energy.latitude_deg is not None:
+            energy_overrides["latitude_deg"] = energy.latitude_deg
+
+        return EnergyBalanceConfig(
+            pet=pet,
+            antecedent=antecedent,
+            **energy_overrides,
         )
 
 
