@@ -9,9 +9,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from simulator.config.loader import load_config
-from simulator.core.contracts import EnergyInput, EnergyOutput, MeteoInput, MeteoOutput
+from simulator.core.contracts import (
+    EnergyInput,
+    EnergyOutput,
+    HydroInput,
+    HydroOutput,
+    MeteoInput,
+    MeteoOutput,
+)
 from simulator.core.dataset import create_empty_dataset
 from simulator.energy.model import EnergyBalanceModel
+from simulator.hydro.model import HydroModel
 from simulator.meteo.precipitation_model import StormPrecipitationModel
 
 
@@ -29,23 +37,30 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_meteo_energy_output_to_dataset(
+def _write_step_outputs_to_dataset(
     *,
     ds,
     meteo_output: MeteoOutput,
     energy_output: EnergyOutput,
+    hydro_output: HydroOutput,
     step: int,
 ) -> None:
-    """Write meteorological and energy-balance outputs into the historical dataset."""
+    """Write meteorological, energy and hydrological outputs into the historical dataset."""
     ds["precipitation"][step, :, :] = meteo_output.precipitation
     ds["air_temperature"][step, :, :] = meteo_output.air_temperature
+
     ds["pet"][step, :, :] = energy_output.pet
-    ds["aet"][step, :, :] = energy_output.aet
     ds["shortwave_radiation"][step, :, :] = energy_output.shortwave_radiation
     ds["net_radiation"][step, :, :] = energy_output.net_radiation
-    ds["antecedent_storage"][step, :, :] = energy_output.antecedent_storage
-    ds["antecedent_relative"][step, :, :] = energy_output.antecedent_relative
-    ds["antecedent_overflow"][step, :, :] = energy_output.antecedent_overflow
+
+    ds["aet"][step, :, :] = hydro_output.aet
+    ds["soil_moisture"][step, :, :] = hydro_output.soil_moisture
+    ds["infiltration"][step, :, :] = hydro_output.infiltration
+    ds["surface_runoff"][step, :, :] = hydro_output.surface_runoff
+    ds["channel_flow"][step, :, :] = hydro_output.channel_flow
+
+    if hydro_output.subsurface_runoff is not None:
+        ds["subsurface_runoff"][step, :, :] = hydro_output.subsurface_runoff
 
     if meteo_output.background_precipitation is not None:
         ds["background_precipitation"][step, :, :] = meteo_output.background_precipitation
@@ -153,7 +168,7 @@ def _save_quicklook_plots(
     rows: list[dict[str, object]],
     output_dir: Path,
 ) -> None:
-    """Generate quick-look diagnostic plots for the meteorology run."""
+    """Generate quick-look diagnostic plots for the full simulation run."""
     plots_dir = output_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -161,9 +176,32 @@ def _save_quicklook_plots(
     background_precipitation = np.asarray(ds["background_precipitation"].values, dtype=float)
     storm_mask = np.asarray(ds["storm_mask"].values, dtype=float)
 
+    pet = np.asarray(ds["pet"].values, dtype=float)
+    aet = np.asarray(ds["aet"].values, dtype=float)
+    shortwave_radiation = np.asarray(ds["shortwave_radiation"].values, dtype=float)
+    net_radiation = np.asarray(ds["net_radiation"].values, dtype=float)
+
+    soil_moisture = np.asarray(ds["soil_moisture"].values, dtype=float)
+    infiltration = np.asarray(ds["infiltration"].values, dtype=float)
+    surface_runoff = np.asarray(ds["surface_runoff"].values, dtype=float)
+    subsurface_runoff = np.asarray(ds["subsurface_runoff"].values, dtype=float)
+
+    # ----- Accumulated / mean / final fields -----
     accumulated_precipitation = np.nansum(precipitation, axis=0)
     accumulated_background_precipitation = np.nansum(background_precipitation, axis=0)
+    accumulated_pet = np.nansum(pet, axis=0)
+    accumulated_aet = np.nansum(aet, axis=0)
+    accumulated_infiltration = np.nansum(infiltration, axis=0)
+    accumulated_surface_runoff = np.nansum(surface_runoff, axis=0)
+    accumulated_subsurface_runoff = np.nansum(subsurface_runoff, axis=0)
 
+    mean_shortwave_radiation = np.nanmean(shortwave_radiation, axis=0)
+    mean_net_radiation = np.nanmean(net_radiation, axis=0)
+
+    mean_soil_moisture = np.nanmean(soil_moisture, axis=0)
+    final_soil_moisture = soil_moisture[-1] if soil_moisture.shape[0] > 0 else np.zeros(ds["soil_moisture"].shape[1:], dtype=float)
+
+    # ----- Core field plots -----
     _save_field_plot(
         accumulated_precipitation,
         title="Accumulated precipitation",
@@ -178,21 +216,109 @@ def _save_quicklook_plots(
         colorbar_label="mm",
     )
 
-    if precipitation.shape[0] > 0:
-        peak_step = int(np.nanargmax(np.nanmax(precipitation, axis=(1, 2))))
+    _save_field_plot(
+        accumulated_pet,
+        title="Accumulated PET",
+        output_path=plots_dir / "accumulated_pet.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        accumulated_aet,
+        title="Accumulated AET",
+        output_path=plots_dir / "accumulated_aet.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        accumulated_infiltration,
+        title="Accumulated infiltration",
+        output_path=plots_dir / "accumulated_infiltration.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        accumulated_surface_runoff,
+        title="Accumulated surface runoff",
+        output_path=plots_dir / "accumulated_surface_runoff.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        accumulated_subsurface_runoff,
+        title="Accumulated subsurface runoff",
+        output_path=plots_dir / "accumulated_subsurface_runoff.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        mean_soil_moisture,
+        title="Mean soil moisture",
+        output_path=plots_dir / "mean_soil_moisture.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        final_soil_moisture,
+        title="Final soil moisture",
+        output_path=plots_dir / "final_soil_moisture.png",
+        colorbar_label="mm",
+    )
+
+    _save_field_plot(
+        mean_shortwave_radiation,
+        title="Mean shortwave radiation",
+        output_path=plots_dir / "mean_shortwave_radiation.png",
+        colorbar_label="W/m2",
+    )
+
+    _save_field_plot(
+        mean_net_radiation,
+        title="Mean net radiation",
+        output_path=plots_dir / "mean_net_radiation.png",
+        colorbar_label="MJ/m2/dt",
+    )
+
+    # ----- Peak step plots -----
+    if precipitation.shape[0] > 0 and np.isfinite(precipitation).any():
+        peak_precip_step = int(np.nanargmax(np.nanmax(precipitation, axis=(1, 2))))
 
         _save_field_plot(
-            precipitation[peak_step],
-            title=f"Precipitation at peak step {peak_step}",
+            precipitation[peak_precip_step],
+            title=f"Precipitation at peak step {peak_precip_step}",
             output_path=plots_dir / "step_peak_precipitation.png",
             colorbar_label="mm/dt",
         )
 
         _save_field_plot(
-            storm_mask[peak_step],
-            title=f"Storm mask at peak step {peak_step}",
+            storm_mask[peak_precip_step],
+            title=f"Storm mask at peak precipitation step {peak_precip_step}",
             output_path=plots_dir / "step_peak_storm_mask.png",
             colorbar_label="1",
+        )
+
+    if surface_runoff.shape[0] > 0 and np.isfinite(surface_runoff).any():
+        peak_runoff_step = int(np.nanargmax(np.nanmax(surface_runoff, axis=(1, 2))))
+
+        _save_field_plot(
+            surface_runoff[peak_runoff_step],
+            title=f"Surface runoff at peak step {peak_runoff_step}",
+            output_path=plots_dir / "step_peak_surface_runoff.png",
+            colorbar_label="mm/dt",
+        )
+
+        _save_field_plot(
+            infiltration[peak_runoff_step],
+            title=f"Infiltration at peak runoff step {peak_runoff_step}",
+            output_path=plots_dir / "step_peak_infiltration.png",
+            colorbar_label="mm/dt",
+        )
+
+        _save_field_plot(
+            soil_moisture[peak_runoff_step],
+            title=f"Soil moisture at peak runoff step {peak_runoff_step}",
+            output_path=plots_dir / "step_peak_runoff_soil_moisture.png",
+            colorbar_label="mm",
         )
 
     if rows and "band_reorganization_applied" in rows[0]:
@@ -215,49 +341,106 @@ def _save_quicklook_plots(
                 colorbar_label="1",
             )
 
+    # ----- Time series from summary rows -----
     if rows:
         step_index = np.asarray([int(row["step"]) for row in rows], dtype=int)
 
-        precipitation_max = np.asarray(
-            [float(row["precipitation_max_mm_dt"]) for row in rows],
-            dtype=float,
-        )
-        _save_line_plot(
-            step_index,
-            precipitation_max,
+        def _plot_row_series(
+            key: str,
+            *,
+            title: str,
+            ylabel: str,
+            filename: str,
+        ) -> None:
+            if key not in rows[0]:
+                return
+
+            values = np.asarray([float(row[key]) for row in rows], dtype=float)
+            _save_line_plot(
+                step_index,
+                values,
+                title=title,
+                xlabel="step",
+                ylabel=ylabel,
+                output_path=plots_dir / filename,
+            )
+
+        _plot_row_series(
+            "precipitation_max_mm_dt",
             title="Maximum precipitation per step",
-            xlabel="step",
             ylabel="mm/dt",
-            output_path=plots_dir / "precipitation_max_timeseries.png",
+            filename="precipitation_max_timeseries.png",
         )
 
-        if "background_fraction_of_total" in rows[0]:
-            background_fraction = np.asarray(
-                [float(row["background_fraction_of_total"]) for row in rows],
-                dtype=float,
-            )
-            _save_line_plot(
-                step_index,
-                background_fraction,
-                title="Background fraction of total precipitation",
-                xlabel="step",
-                ylabel="fraction",
-                output_path=plots_dir / "background_fraction_timeseries.png",
-            )
+        _plot_row_series(
+            "background_fraction_of_total",
+            title="Background fraction of total precipitation",
+            ylabel="fraction",
+            filename="background_fraction_timeseries.png",
+        )
 
-        if "band_reorganization_applied" in rows[0]:
-            band_flag = np.asarray(
-                [float(row["band_reorganization_applied"]) for row in rows],
-                dtype=float,
-            )
-            _save_line_plot(
-                step_index,
-                band_flag,
-                title="Band reorganization applied",
-                xlabel="step",
-                ylabel="0/1",
-                output_path=plots_dir / "band_reorganization_timeseries.png",
-            )
+        _plot_row_series(
+            "band_reorganization_applied",
+            title="Band reorganization applied",
+            ylabel="0/1",
+            filename="band_reorganization_timeseries.png",
+        )
+
+        _plot_row_series(
+            "pet_mean_mm_dt",
+            title="Mean PET per step",
+            ylabel="mm/dt",
+            filename="pet_mean_timeseries.png",
+        )
+
+        _plot_row_series(
+            "aet_mean_mm_dt",
+            title="Mean AET per step",
+            ylabel="mm/dt",
+            filename="aet_mean_timeseries.png",
+        )
+
+        _plot_row_series(
+            "soil_moisture_mean_mm",
+            title="Mean soil moisture per step",
+            ylabel="mm",
+            filename="soil_moisture_mean_timeseries.png",
+        )
+
+        _plot_row_series(
+            "infiltration_sum_mm_dt",
+            title="Total infiltration per step",
+            ylabel="mm/dt",
+            filename="infiltration_sum_timeseries.png",
+        )
+
+        _plot_row_series(
+            "surface_runoff_sum_mm_dt",
+            title="Total surface runoff per step",
+            ylabel="mm/dt",
+            filename="surface_runoff_sum_timeseries.png",
+        )
+
+        _plot_row_series(
+            "subsurface_runoff_sum_mm_dt",
+            title="Total subsurface runoff per step",
+            ylabel="mm/dt",
+            filename="subsurface_runoff_sum_timeseries.png",
+        )
+
+        _plot_row_series(
+            "shortwave_radiation_mean_w_m2",
+            title="Mean shortwave radiation per step",
+            ylabel="W/m2",
+            filename="shortwave_radiation_mean_timeseries.png",
+        )
+
+        _plot_row_series(
+            "net_radiation_mean_mj_m2_dt",
+            title="Mean net radiation per step",
+            ylabel="MJ/m2/dt",
+            filename="net_radiation_mean_timeseries.png",
+        )
 
 
 def main() -> None:
@@ -272,6 +455,11 @@ def main() -> None:
     energy_config = loaded.build_energy_balance_config()
     energy_model = EnergyBalanceModel(
         energy_config,
+        shape=domain.shape,
+    )
+    hydro_config = loaded.build_hydro_config()
+    hydro_model = HydroModel(
+        hydro_config,
         shape=domain.shape,
     )
 
@@ -316,10 +504,21 @@ def main() -> None:
         )
         energy_output = energy_model.step(energy_input)
 
-        _write_meteo_energy_output_to_dataset(
+        hydro_input = HydroInput(
+            domain=domain,
+            step=step,
+            timestamp=timestamp,
+            precipitation=meteo_output.precipitation,
+            pet=energy_output.pet,
+            soil_moisture_prev=hydro_model.latest_state.soil_moisture_mm,
+        )
+        hydro_output = hydro_model.step(hydro_input)
+
+        _write_step_outputs_to_dataset(
             ds=ds,
             meteo_output=meteo_output,
             energy_output=energy_output,
+            hydro_output=hydro_output,
             step=step,
         )
 
@@ -360,12 +559,15 @@ def main() -> None:
                 "storm_mask_active_cells": int(0 if meteo_output.storm_mask is None else (meteo_output.storm_mask > 0.0).sum()),
                 "air_temperature_mean_c": float(meteo_output.air_temperature.mean()),
                 "pet_mean_mm_dt": float(energy_output.pet.mean()),
-                "aet_mean_mm_dt": float(energy_output.aet.mean()),
                 "shortwave_radiation_mean_w_m2": float(energy_output.shortwave_radiation.mean()),
                 "net_radiation_mean_mj_m2_dt": float(energy_output.net_radiation.mean()),
-                "antecedent_storage_mean_mm": float(energy_output.antecedent_storage.mean()),
-                "antecedent_relative_mean": float(energy_output.antecedent_relative.mean()),
-                "antecedent_overflow_sum_mm_dt": float(energy_output.antecedent_overflow.sum()),
+                "aet_mean_mm_dt": float(hydro_output.aet.mean()),
+                "soil_moisture_mean_mm": float(hydro_output.soil_moisture.mean()),
+                "infiltration_sum_mm_dt": float(hydro_output.infiltration.sum()),
+                "surface_runoff_sum_mm_dt": float(hydro_output.surface_runoff.sum()),
+                "subsurface_runoff_sum_mm_dt": float(
+                    0.0 if hydro_output.subsurface_runoff is None else hydro_output.subsurface_runoff.sum()
+                ),
             }
         )
 
@@ -378,13 +580,14 @@ def main() -> None:
             f"band_births={diagnostics.band_births_count} | "
             f"precip_max={meteo_output.precipitation.max():.3f} mm/dt | "
             f"pet_mean={energy_output.pet.mean():.3f} mm/dt | "
-            f"aet_mean={energy_output.aet.mean():.3f} mm/dt | "
-            f"ant_rel_mean={energy_output.antecedent_relative.mean():.3f}"
+            f"aet_mean={hydro_output.aet.mean():.3f} mm/dt | "
+            f"soil_mean={hydro_output.soil_moisture.mean():.3f} mm | "
+            f"runoff_mean={hydro_output.surface_runoff.mean():.3f} mm/dt"
         )
 
     dataset_path = _save_dataset(ds, output_dir=run_output_dir)
 
-    summary_csv_path = run_output_dir / "meteo_energy_summary.csv"
+    summary_csv_path = run_output_dir / "simulation_summary.csv"
     _write_summary_csv(
         rows=summary_rows,
         output_path=summary_csv_path,

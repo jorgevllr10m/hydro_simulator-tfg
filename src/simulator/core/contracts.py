@@ -71,21 +71,13 @@ class EnergyOutput:
     """Typed output contract for the energy-balance module."""
 
     pet: FloatArray
-    aet: FloatArray
     shortwave_radiation: FloatArray
     net_radiation: FloatArray
-    antecedent_storage: FloatArray
-    antecedent_relative: FloatArray
-    antecedent_overflow: FloatArray
 
     def __post_init__(self) -> None:
         SimulationState._validate_spatial_field("pet", self.pet)
-        SimulationState._validate_spatial_field("aet", self.aet)
         SimulationState._validate_spatial_field("shortwave_radiation", self.shortwave_radiation)
         SimulationState._validate_spatial_field("net_radiation", self.net_radiation)
-        SimulationState._validate_spatial_field("antecedent_storage", self.antecedent_storage)
-        SimulationState._validate_spatial_field("antecedent_relative", self.antecedent_relative)
-        SimulationState._validate_spatial_field("antecedent_overflow", self.antecedent_overflow)
 
 
 @dataclass(frozen=True)
@@ -113,6 +105,7 @@ class HydroOutput:
     infiltration: FloatArray
     surface_runoff: FloatArray
     channel_flow: FloatArray
+    aet: FloatArray
     subsurface_runoff: FloatArray | None = None
     outlet_discharge: float | None = None
 
@@ -121,6 +114,7 @@ class HydroOutput:
         SimulationState._validate_spatial_field("infiltration", self.infiltration)
         SimulationState._validate_spatial_field("surface_runoff", self.surface_runoff)
         SimulationState._validate_spatial_field("channel_flow", self.channel_flow)
+        SimulationState._validate_spatial_field("aet", self.aet)
 
         if self.subsurface_runoff is not None:
             SimulationState._validate_spatial_field("subsurface_runoff", self.subsurface_runoff)

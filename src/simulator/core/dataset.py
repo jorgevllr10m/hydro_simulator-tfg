@@ -86,24 +86,6 @@ VARIABLE_SPECS: dict[str, VariableSpec] = {
         units="MJ/m2/dt",
         description="Net radiation available during the simulation time step",
     ),
-    "antecedent_storage": VariableSpec(
-        name="antecedent_storage",
-        dims=(TIME_DIM, Y_DIM, X_DIM),
-        units="mm",
-        description="Simplified antecedent-water storage",
-    ),
-    "antecedent_relative": VariableSpec(
-        name="antecedent_relative",
-        dims=(TIME_DIM, Y_DIM, X_DIM),
-        units="1",
-        description="Antecedent-water storage normalized to [0, 1]",
-    ),
-    "antecedent_overflow": VariableSpec(
-        name="antecedent_overflow",
-        dims=(TIME_DIM, Y_DIM, X_DIM),
-        units="mm/dt",
-        description="Excess antecedent-water input above storage capacity",
-    ),
     # Hydrology
     "soil_moisture": VariableSpec(
         name="soil_moisture",
@@ -268,18 +250,6 @@ def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["net_radiation"].dims,
     )
-    ds["antecedent_storage"] = xr.DataArray(
-        _empty_spatial_time_array(n_steps, ny, nx),
-        dims=VARIABLE_SPECS["antecedent_storage"].dims,
-    )
-    ds["antecedent_relative"] = xr.DataArray(
-        _empty_spatial_time_array(n_steps, ny, nx),
-        dims=VARIABLE_SPECS["antecedent_relative"].dims,
-    )
-    ds["antecedent_overflow"] = xr.DataArray(
-        _empty_spatial_time_array(n_steps, ny, nx),
-        dims=VARIABLE_SPECS["antecedent_overflow"].dims,
-    )
     # Hydrology
     ds["soil_moisture"] = xr.DataArray(
         _empty_spatial_time_array(n_steps, ny, nx),
@@ -360,15 +330,6 @@ def write_state_to_dataset(
 
     if state.net_radiation is not None:
         ds["net_radiation"][target_step, :, :] = state.net_radiation
-
-    if state.antecedent_storage is not None:
-        ds["antecedent_storage"][target_step, :, :] = state.antecedent_storage
-
-    if state.antecedent_relative is not None:
-        ds["antecedent_relative"][target_step, :, :] = state.antecedent_relative
-
-    if state.antecedent_overflow is not None:
-        ds["antecedent_overflow"][target_step, :, :] = state.antecedent_overflow
 
     if state.infiltration is not None:
         ds["infiltration"][target_step, :, :] = state.infiltration

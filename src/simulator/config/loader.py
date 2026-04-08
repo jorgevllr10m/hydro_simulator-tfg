@@ -22,9 +22,11 @@ from simulator.core.types import (
     SimulationDomain,
     SpatialDomain,
 )
-from simulator.energy.antecedent import AntecedentConfig
 from simulator.energy.model import EnergyBalanceConfig
 from simulator.energy.pet import PETConfig
+from simulator.hydro.model import HydroConfig
+from simulator.hydro.runoff import RunoffConfig
+from simulator.hydro.soil import SoilConfig
 from simulator.meteo.background_field import BackgroundFieldConfig
 from simulator.meteo.latent_state import LatentEnvironmentConfig
 from simulator.meteo.precipitation_model import StormPrecipitationConfig
@@ -184,10 +186,8 @@ class LoadedConfig:
         energy = self.scenario.energy
 
         pet_overrides = energy.pet.model_dump(exclude_none=True)
-        antecedent_overrides = energy.antecedent.model_dump(exclude_none=True)
 
         pet = PETConfig(**pet_overrides)
-        antecedent = AntecedentConfig(**antecedent_overrides)
 
         energy_overrides: dict[str, Any] = {}
         if energy.latitude_deg is not None:
@@ -195,8 +195,31 @@ class LoadedConfig:
 
         return EnergyBalanceConfig(
             pet=pet,
-            antecedent=antecedent,
             **energy_overrides,
+        )
+
+    # * Build hydrology module config
+    def build_hydro_config(self) -> HydroConfig:
+        """Build internal hydrology config from scenario overrides.
+
+        Defaults are defined in the runtime dataclasses themselves.
+        The scenario file only provides optional overrides.
+
+        This means:
+        - omitted YAML fields do not need to be written
+        - omitted YAML fields fall back to runtime defaults
+        """
+        hydro = self.scenario.hydro
+
+        soil_overrides = hydro.soil.model_dump(exclude_none=True)
+        runoff_overrides = hydro.runoff.model_dump(exclude_none=True)
+
+        soil = SoilConfig(**soil_overrides)
+        runoff = RunoffConfig(**runoff_overrides)
+
+        return HydroConfig(
+            soil=soil,
+            runoff=runoff,
         )
 
 

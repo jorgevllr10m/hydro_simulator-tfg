@@ -1,9 +1,9 @@
 meteo:
-  latent_environment:
-    initial_regime: transitional
-    thermal_scenario: normal
-    moisture_scenario: normal
+    latent_environment:
+        initial_regime: transitional
+        thermal_scenario: normal
+        moisture_scenario: normal
 
-  storm_birth:
-    expected_births_per_step: 1.0
-    max_new_storms_per_step: 8
+    storm_birth:
+        expected_births_per_step: 1.0
+        max_new_storms_per_step: 8

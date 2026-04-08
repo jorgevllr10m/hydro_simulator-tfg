@@ -7,12 +7,6 @@ import numpy as np
 
 from simulator.core.contracts import EnergyInput, EnergyOutput
 from simulator.core.types import FloatArray
-from simulator.energy.antecedent import (
-    AntecedentConfig,
-    AntecedentFields,
-    build_initial_antecedent_storage_mm,
-    update_antecedent_store,
-)
 from simulator.energy.pet import PETConfig, PETFields, compute_priestley_taylor_pet_mm_dt
 from simulator.energy.radiation import (
     RadiationFields,
@@ -77,7 +71,6 @@ class EnergyBalanceConfig:
 
     solar: SolarRadiationConfig = field(default_factory=SolarRadiationConfig)
     pet: PETConfig = field(default_factory=PETConfig)
-    antecedent: AntecedentConfig = field(default_factory=AntecedentConfig)
 
     def __post_init__(self) -> None:
         _validate_latitude_deg(self.latitude_deg)
@@ -87,22 +80,6 @@ class EnergyBalanceConfig:
 
         if not isinstance(self.pet, PETConfig):
             raise TypeError(f"'pet' must be a PETConfig, got {type(self.pet).__name__}")
-
-        if not isinstance(self.antecedent, AntecedentConfig):
-            raise TypeError(f"'antecedent' must be an AntecedentConfig, got {type(self.antecedent).__name__}")
-
-
-@dataclass(frozen=True)
-class EnergyBalanceState:
-    """Persistent internal state of the energy-balance module."""
-
-    antecedent_storage_mm: FloatArray
-
-    def __post_init__(self) -> None:
-        _validate_spatial_float_array("antecedent_storage_mm", self.antecedent_storage_mm)
-
-        if np.any(self.antecedent_storage_mm < 0.0):
-            raise ValueError("'antecedent_storage_mm' must be >= 0 everywhere")
 
 
 @dataclass(frozen=True)
@@ -115,7 +92,6 @@ class EnergyStepDiagnostics:
     solar_geometry: SolarGeometry
     radiation: RadiationFields
     pet: PETFields
-    antecedent: AntecedentFields
 
     def __post_init__(self) -> None:
         if not isinstance(self.step, int) or self.step < 0:
@@ -133,9 +109,6 @@ class EnergyStepDiagnostics:
         if not isinstance(self.pet, PETFields):
             raise TypeError(f"'pet' must be a PETFields, got {type(self.pet).__name__}")
 
-        if not isinstance(self.antecedent, AntecedentFields):
-            raise TypeError(f"'antecedent' must be an AntecedentFields, got {type(self.antecedent).__name__}")
-
 
 class EnergyBalanceModel:
     """Stateful simplified energy-balance model.
@@ -144,7 +117,11 @@ class EnergyBalanceModel:
     - solar geometry
     - simplified shortwave radiation
     - simplified Priestley-Taylor PET
-    - antecedent-water availability and AET limitation
+
+    Notes
+    -----
+    - This module does not compute actual evapotranspiration (AET).
+    - AET is computed later by the hydrology/soil module from PET and soil water.
     """
 
     def __init__(
@@ -158,13 +135,6 @@ class EnergyBalanceModel:
 
         self.config = config
         self._shape = _validate_shape(shape)
-
-        self._latest_state = EnergyBalanceState(
-            antecedent_storage_mm=build_initial_antecedent_storage_mm(
-                self._shape,
-                config=self.config.antecedent,
-            )
-        )
         self._latest_diagnostics: EnergyStepDiagnostics | None = None
 
     @property
@@ -173,23 +143,12 @@ class EnergyBalanceModel:
         return self._shape
 
     @property
-    def latest_state(self) -> EnergyBalanceState:
-        """Return the latest persistent internal state."""
-        return self._latest_state
-
-    @property
     def latest_diagnostics(self) -> EnergyStepDiagnostics | None:
         """Return diagnostics from the most recent completed step."""
         return self._latest_diagnostics
 
     def reset(self) -> None:
-        """Reset persistent state and diagnostics to the initial reproducible state."""
-        self._latest_state = EnergyBalanceState(
-            antecedent_storage_mm=build_initial_antecedent_storage_mm(
-                self._shape,
-                config=self.config.antecedent,
-            )
-        )
+        """Reset diagnostics to the initial reproducible state."""
         self._latest_diagnostics = None
 
     def step(
@@ -237,25 +196,10 @@ class EnergyBalanceModel:
             config=self.config.pet,
         )
 
-        antecedent = update_antecedent_store(
-            antecedent_storage_prev_mm=self._latest_state.antecedent_storage_mm,
-            precipitation_mm_dt=energy_input.precipitation,
-            pet_mm_dt=pet.pet_mm_dt,
-            config=self.config.antecedent,
-        )
-
-        self._latest_state = EnergyBalanceState(
-            antecedent_storage_mm=antecedent.antecedent_storage_mm,
-        )
-
         output = EnergyOutput(
             pet=pet.pet_mm_dt,
-            aet=antecedent.aet_mm_dt,
             shortwave_radiation=radiation.shortwave_in_w_m2,
             net_radiation=radiation.net_radiation_mj_m2_dt,
-            antecedent_storage=antecedent.antecedent_storage_mm,
-            antecedent_relative=antecedent.antecedent_relative,
-            antecedent_overflow=antecedent.antecedent_overflow_mm_dt,
         )
 
         self._latest_diagnostics = EnergyStepDiagnostics(
@@ -264,7 +208,6 @@ class EnergyBalanceModel:
             solar_geometry=solar_geometry,
             radiation=radiation,
             pet=pet,
-            antecedent=antecedent,
         )
 
         return output

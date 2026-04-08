@@ -237,28 +237,6 @@ class PETOverrideConfig(BaseModel):
     )
 
 
-class AntecedentOverrideConfig(BaseModel):
-    """Optional scenario overrides for the antecedent-water availability store."""
-
-    capacity_mm: float | None = Field(
-        None,
-        gt=0.0,
-        description="Maximum antecedent-water storage capacity [mm]",
-    )
-    initial_relative: float | None = Field(
-        None,
-        ge=0.0,
-        le=1.0,
-        description="Initial relative filling of the antecedent store [0-1]",
-    )
-    wetting_efficiency: float | None = Field(
-        None,
-        ge=0.0,
-        le=1.0,
-        description="Fraction of precipitation that recharges the antecedent store [0-1]",
-    )
-
-
 class EnergyScenarioConfig(BaseModel):
     """Energy-balance overrides contained in a scenario file."""
 
@@ -269,7 +247,51 @@ class EnergyScenarioConfig(BaseModel):
         description="Synthetic latitude used by the solar-geometry model [deg]",
     )
     pet: PETOverrideConfig = Field(default_factory=PETOverrideConfig)
-    antecedent: AntecedentOverrideConfig = Field(default_factory=AntecedentOverrideConfig)
+
+
+# * Hydrology module
+class SoilOverrideConfig(BaseModel):
+    """Optional scenario overrides for the simplified soil bucket."""
+
+    capacity_mm: float | None = Field(
+        None,
+        gt=0.0,
+        description="Maximum soil-water storage capacity [mm]",
+    )
+    initial_relative: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Initial relative filling of the soil bucket [0-1]",
+    )
+    max_infiltration_mm_dt: float | None = Field(
+        None,
+        gt=0.0,
+        description="Maximum infiltration capacity per simulation step [mm/dt]",
+    )
+    percolation_rate_mm_dt: float | None = Field(
+        None,
+        ge=0.0,
+        description="Maximum percolation/drainage rate per simulation step [mm/dt]",
+    )
+
+
+class RunoffOverrideConfig(BaseModel):
+    """Optional scenario overrides for the simplified runoff partition."""
+
+    subsurface_runoff_fraction: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of soil percolation exposed as subsurface runoff [0-1]",
+    )
+
+
+class HydroScenarioConfig(BaseModel):
+    """Hydrology overrides contained in a scenario file."""
+
+    soil: SoilOverrideConfig = Field(default_factory=SoilOverrideConfig)
+    runoff: RunoffOverrideConfig = Field(default_factory=RunoffOverrideConfig)
 
 
 # -------
@@ -280,3 +302,4 @@ class ScenarioConfig(BaseModel):
 
     meteo: MeteoScenarioConfig = Field(default_factory=MeteoScenarioConfig)
     energy: EnergyScenarioConfig = Field(default_factory=EnergyScenarioConfig)
+    hydro: HydroScenarioConfig = Field(default_factory=HydroScenarioConfig)
