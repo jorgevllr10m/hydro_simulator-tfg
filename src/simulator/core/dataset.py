@@ -117,6 +117,12 @@ VARIABLE_SPECS: dict[str, VariableSpec] = {
         units="m3/s",
         description="Channel or routed flow",
     ),
+    "outlet_discharge": VariableSpec(
+        name="outlet_discharge",
+        dims=(TIME_DIM,),
+        units="m3/s",
+        description="Discharge at the basin outlet",
+    ),
     # Reservoirs
     "reservoir_inflow": VariableSpec(
         name="reservoir_inflow",
@@ -184,6 +190,11 @@ def _empty_spatial_time_array(n_steps: int, ny: int, nx: int) -> np.ndarray:
 def _empty_time_reservoir_array(n_steps: int, n_reservoirs: int) -> np.ndarray:
     """Create an empty 2D float array filled with NaN."""
     return np.full((n_steps, n_reservoirs), np.nan, dtype=float)
+
+
+def _empty_time_array(n_steps: int) -> np.ndarray:
+    """Create an empty 1D float array filled with NaN."""
+    return np.full((n_steps,), np.nan, dtype=float)
 
 
 def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
@@ -267,9 +278,14 @@ def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["subsurface_runoff"].dims,
     )
+    # Routing
     ds["channel_flow"] = xr.DataArray(
         _empty_spatial_time_array(n_steps, ny, nx),
         dims=VARIABLE_SPECS["channel_flow"].dims,
+    )
+    ds["outlet_discharge"] = xr.DataArray(
+        _empty_time_array(n_steps),
+        dims=VARIABLE_SPECS["outlet_discharge"].dims,
     )
     ds["reservoir_inflow"] = xr.DataArray(
         _empty_time_reservoir_array(n_steps, n_reservoirs),
@@ -315,6 +331,7 @@ def write_state_to_dataset(
     ds["soil_moisture"][target_step, :, :] = state.soil_moisture
     ds["surface_runoff"][target_step, :, :] = state.surface_runoff
     ds["channel_flow"][target_step, :, :] = state.channel_flow
+    ds["outlet_discharge"][target_step] = state.outlet_discharge
 
     if state.background_precipitation is not None:
         ds["background_precipitation"][target_step, :, :] = state.background_precipitation

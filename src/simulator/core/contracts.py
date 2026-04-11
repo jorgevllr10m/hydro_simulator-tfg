@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 
 from simulator.core.state import SimulationState
 from simulator.core.types import SimulationDomain
+from simulator.routing.rules import ReservoirOperationZone
 
 BoolArray = NDArray[np.bool_]
 FloatArray = NDArray[np.float64]
@@ -99,63 +100,147 @@ class HydroInput:
 
 @dataclass(frozen=True)
 class HydroOutput:
-    """Typed output contract for the hydrology module."""
+    """Typed output contract for the hydrology module.
+
+    This output contains only per-cell hydrological products generated before
+    channel routing and reservoir regulation.
+    """
 
     soil_moisture: FloatArray
     infiltration: FloatArray
     surface_runoff: FloatArray
-    channel_flow: FloatArray
     aet: FloatArray
     subsurface_runoff: FloatArray | None = None
-    outlet_discharge: float | None = None
 
     def __post_init__(self) -> None:
         SimulationState._validate_spatial_field("soil_moisture", self.soil_moisture)
         SimulationState._validate_spatial_field("infiltration", self.infiltration)
         SimulationState._validate_spatial_field("surface_runoff", self.surface_runoff)
-        SimulationState._validate_spatial_field("channel_flow", self.channel_flow)
         SimulationState._validate_spatial_field("aet", self.aet)
 
         if self.subsurface_runoff is not None:
             SimulationState._validate_spatial_field("subsurface_runoff", self.subsurface_runoff)
 
-        if self.outlet_discharge is not None and not isinstance(
-            self.outlet_discharge,
-            (int, float),
-        ):
-            raise TypeError(f"'outlet_discharge' must be numeric or None, got {type(self.outlet_discharge).__name__}")
-
 
 @dataclass(frozen=True)
-class ReservoirInput:
-    """Typed input contract for the reservoir module."""
+class RegulatedRoutingInput:
+    """Typed input contract for the regulated routing module.
+
+    This input contains the local hydrological products required to perform
+    channel routing and reservoir regulation.
+    """
 
     domain: SimulationDomain
     step: int
     timestamp: datetime
-    reservoir_inflow: FloatArray
-    reservoir_storage_prev: FloatArray
+
+    surface_runoff: FloatArray
+    pet: FloatArray
+    subsurface_runoff: FloatArray | None = None
 
     def __post_init__(self) -> None:
-        SimulationState._validate_vector_field("reservoir_inflow", self.reservoir_inflow)
-        SimulationState._validate_vector_field(
-            "reservoir_storage_prev",
-            self.reservoir_storage_prev,
-        )
+        if not isinstance(self.domain, SimulationDomain):
+            raise TypeError(f"'domain' must be a SimulationDomain, got {type(self.domain).__name__}")
+
+        if not isinstance(self.step, int) or self.step < 0:
+            raise ValueError(f"'step' must be a non-negative integer, got {self.step!r}")
+
+        if not isinstance(self.timestamp, datetime):
+            raise TypeError(f"'timestamp' must be a datetime, got {type(self.timestamp).__name__}")
+
+        SimulationState._validate_spatial_field("surface_runoff", self.surface_runoff)
+        SimulationState._validate_spatial_field("pet", self.pet)
+
+        if self.surface_runoff.shape != self.domain.shape:
+            raise ValueError(f"'surface_runoff' must have shape {self.domain.shape}, got {self.surface_runoff.shape}")
+
+        if self.pet.shape != self.domain.shape:
+            raise ValueError(f"'pet' must have shape {self.domain.shape}, got {self.pet.shape}")
+
+        if self.subsurface_runoff is not None:
+            SimulationState._validate_spatial_field("subsurface_runoff", self.subsurface_runoff)
+
+            if self.subsurface_runoff.shape != self.domain.shape:
+                raise ValueError(f"'subsurface_runoff' must have shape {self.domain.shape}, got {self.subsurface_runoff.shape}")
 
 
 @dataclass(frozen=True)
-class ReservoirOutput:
-    """Typed output contract for the reservoir module."""
+class RegulatedRoutingOutput:
+    """Typed output contract for the regulated routing module."""
 
-    reservoir_storage: FloatArray
-    reservoir_release: FloatArray
-    reservoir_spill: FloatArray
+    lateral_inflow_m3s: FloatArray
+    cell_inflow_m3s: FloatArray
+    channel_flow_m3s: FloatArray
+    outlet_discharge_m3s: float
+
+    reservoir_inflow_m3s: FloatArray
+    reservoir_requested_release_m3s: FloatArray
+    reservoir_storage_fraction: FloatArray
+    reservoir_surface_area_m2: FloatArray
+    reservoir_evaporation_loss_m3: FloatArray
+    reservoir_storage_m3: FloatArray
+    reservoir_release_m3s: FloatArray
+    reservoir_spill_m3s: FloatArray
+    reservoir_total_outflow_m3s: FloatArray
+    reservoir_zones: tuple[ReservoirOperationZone | None, ...]
 
     def __post_init__(self) -> None:
-        SimulationState._validate_vector_field("reservoir_storage", self.reservoir_storage)
-        SimulationState._validate_vector_field("reservoir_release", self.reservoir_release)
-        SimulationState._validate_vector_field("reservoir_spill", self.reservoir_spill)
+        SimulationState._validate_spatial_field("lateral_inflow_m3s", self.lateral_inflow_m3s)
+        SimulationState._validate_spatial_field("cell_inflow_m3s", self.cell_inflow_m3s)
+        SimulationState._validate_spatial_field("channel_flow_m3s", self.channel_flow_m3s)
+
+        if not isinstance(self.outlet_discharge_m3s, (int, float)):
+            raise TypeError(f"'outlet_discharge_m3s' must be numeric, got {type(self.outlet_discharge_m3s).__name__}")
+
+        SimulationState._validate_vector_field("reservoir_inflow_m3s", self.reservoir_inflow_m3s)
+        SimulationState._validate_vector_field(
+            "reservoir_requested_release_m3s",
+            self.reservoir_requested_release_m3s,
+        )
+        SimulationState._validate_vector_field(
+            "reservoir_storage_fraction",
+            self.reservoir_storage_fraction,
+        )
+        SimulationState._validate_vector_field(
+            "reservoir_surface_area_m2",
+            self.reservoir_surface_area_m2,
+        )
+        SimulationState._validate_vector_field(
+            "reservoir_evaporation_loss_m3",
+            self.reservoir_evaporation_loss_m3,
+        )
+        SimulationState._validate_vector_field("reservoir_storage_m3", self.reservoir_storage_m3)
+        SimulationState._validate_vector_field("reservoir_release_m3s", self.reservoir_release_m3s)
+        SimulationState._validate_vector_field("reservoir_spill_m3s", self.reservoir_spill_m3s)
+        SimulationState._validate_vector_field(
+            "reservoir_total_outflow_m3s",
+            self.reservoir_total_outflow_m3s,
+        )
+
+        n_reservoirs = self.reservoir_storage_m3.shape[0]
+
+        vector_fields = {
+            "reservoir_inflow_m3s": self.reservoir_inflow_m3s,
+            "reservoir_requested_release_m3s": self.reservoir_requested_release_m3s,
+            "reservoir_storage_fraction": self.reservoir_storage_fraction,
+            "reservoir_surface_area_m2": self.reservoir_surface_area_m2,
+            "reservoir_evaporation_loss_m3": self.reservoir_evaporation_loss_m3,
+            "reservoir_storage_m3": self.reservoir_storage_m3,
+            "reservoir_release_m3s": self.reservoir_release_m3s,
+            "reservoir_spill_m3s": self.reservoir_spill_m3s,
+            "reservoir_total_outflow_m3s": self.reservoir_total_outflow_m3s,
+        }
+
+        for name, value in vector_fields.items():
+            if value.shape[0] != n_reservoirs:
+                raise ValueError(f"'{name}' must have length {n_reservoirs}, got {value.shape[0]}")
+
+        if len(self.reservoir_zones) != n_reservoirs:
+            raise ValueError(f"'reservoir_zones' must have length {n_reservoirs}, got {len(self.reservoir_zones)}")
+
+        for zone in self.reservoir_zones:
+            if zone is not None and not isinstance(zone, ReservoirOperationZone):
+                raise TypeError(f"All items in 'reservoir_zones' must be ReservoirOperationZone or None, got {type(zone).__name__}")
 
 
 @dataclass(frozen=True)

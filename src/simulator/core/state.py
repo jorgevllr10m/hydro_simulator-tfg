@@ -28,6 +28,7 @@ class SimulationState:
     soil_moisture: FloatArray
     surface_runoff: FloatArray
     channel_flow: FloatArray
+    outlet_discharge: float
 
     background_precipitation: FloatArray | None = None
     storm_mask: FloatArray | None = None
@@ -51,12 +52,18 @@ class SimulationState:
         if not isinstance(self.step, int) or self.step < 0:
             raise ValueError(f"'step' must be a non-negative integer, got {self.step!r}")
 
+        if not isinstance(self.timestamp, datetime):
+            raise TypeError(f"'timestamp' must be a datetime, got {type(self.timestamp).__name__}")
+
         self._validate_spatial_field("precipitation", self.precipitation)
         self._validate_spatial_field("air_temperature", self.air_temperature)
         self._validate_spatial_field("pet", self.pet)
         self._validate_spatial_field("soil_moisture", self.soil_moisture)
         self._validate_spatial_field("surface_runoff", self.surface_runoff)
         self._validate_spatial_field("channel_flow", self.channel_flow)
+
+        if not isinstance(self.outlet_discharge, (int, float)):
+            raise TypeError(f"'outlet_discharge' must be numeric, got {type(self.outlet_discharge).__name__}")
 
         if self.background_precipitation is not None:
             self._validate_spatial_field("background_precipitation", self.background_precipitation)
@@ -117,6 +124,22 @@ class SimulationState:
 
         if self.reservoir_spill is not None:
             self._validate_vector_field("reservoir_spill", self.reservoir_spill)
+
+        reservoir_fields = {
+            "reservoir_inflow": self.reservoir_inflow,
+            "reservoir_storage": self.reservoir_storage,
+            "reservoir_release": self.reservoir_release,
+            "reservoir_spill": self.reservoir_spill,
+        }
+
+        present_reservoir_fields = {name: value for name, value in reservoir_fields.items() if value is not None}
+
+        if present_reservoir_fields:
+            expected_length = next(iter(present_reservoir_fields.values())).shape[0]
+
+            for name, value in present_reservoir_fields.items():
+                if value.shape[0] != expected_length:
+                    raise ValueError(f"'{name}' must have length {expected_length}, got {value.shape[0]}")
 
         if self.observations is not None:
             if not isinstance(self.observations, dict):

@@ -16,11 +16,15 @@ from simulator.core.contracts import (
     HydroOutput,
     MeteoInput,
     MeteoOutput,
+    RegulatedRoutingInput,
+    RegulatedRoutingOutput,
 )
 from simulator.core.dataset import create_empty_dataset
 from simulator.energy.model import EnergyBalanceModel
 from simulator.hydro.model import HydroModel
 from simulator.meteo.precipitation_model import StormPrecipitationModel
+from simulator.routing.model import RegulatedRoutingModel
+from simulator.routing.network import build_simplified_drainage_network
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,9 +47,10 @@ def _write_step_outputs_to_dataset(
     meteo_output: MeteoOutput,
     energy_output: EnergyOutput,
     hydro_output: HydroOutput,
+    routing_output: RegulatedRoutingOutput,
     step: int,
 ) -> None:
-    """Write meteorological, energy and hydrological outputs into the historical dataset."""
+    """Write meteorological, energy, hydrological and routing outputs into the historical dataset."""
     ds["precipitation"][step, :, :] = meteo_output.precipitation
     ds["air_temperature"][step, :, :] = meteo_output.air_temperature
 
@@ -57,10 +62,17 @@ def _write_step_outputs_to_dataset(
     ds["soil_moisture"][step, :, :] = hydro_output.soil_moisture
     ds["infiltration"][step, :, :] = hydro_output.infiltration
     ds["surface_runoff"][step, :, :] = hydro_output.surface_runoff
-    ds["channel_flow"][step, :, :] = hydro_output.channel_flow
+    ds["channel_flow"][step, :, :] = routing_output.channel_flow_m3s
+    ds["outlet_discharge"][step] = routing_output.outlet_discharge_m3s
 
     if hydro_output.subsurface_runoff is not None:
         ds["subsurface_runoff"][step, :, :] = hydro_output.subsurface_runoff
+
+    if routing_output.reservoir_inflow_m3s.size > 0:
+        ds["reservoir_inflow"][step, :] = routing_output.reservoir_inflow_m3s
+        ds["reservoir_storage"][step, :] = routing_output.reservoir_storage_m3
+        ds["reservoir_release"][step, :] = routing_output.reservoir_release_m3s
+        ds["reservoir_spill"][step, :] = routing_output.reservoir_spill_m3s
 
     if meteo_output.background_precipitation is not None:
         ds["background_precipitation"][step, :, :] = meteo_output.background_precipitation
@@ -185,6 +197,7 @@ def _save_quicklook_plots(
     infiltration = np.asarray(ds["infiltration"].values, dtype=float)
     surface_runoff = np.asarray(ds["surface_runoff"].values, dtype=float)
     subsurface_runoff = np.asarray(ds["subsurface_runoff"].values, dtype=float)
+    channel_flow = np.asarray(ds["channel_flow"].values, dtype=float)
 
     # ----- Accumulated / mean / final fields -----
     accumulated_precipitation = np.nansum(precipitation, axis=0)
@@ -321,6 +334,13 @@ def _save_quicklook_plots(
             colorbar_label="mm",
         )
 
+        _save_field_plot(
+            channel_flow[peak_runoff_step],
+            title=f"Channel flow at peak runoff step {peak_runoff_step}",
+            output_path=plots_dir / "step_peak_channel_flow.png",
+            colorbar_label="m3/s",
+        )
+
     if rows and "band_reorganization_applied" in rows[0]:
         band_steps = [int(row["step"]) for row in rows if int(row["band_reorganization_applied"]) == 1]
 
@@ -442,6 +462,20 @@ def _save_quicklook_plots(
             filename="net_radiation_mean_timeseries.png",
         )
 
+        _plot_row_series(
+            "channel_flow_mean_m3s",
+            title="Mean channel flow per step",
+            ylabel="m3/s",
+            filename="channel_flow_mean_timeseries.png",
+        )
+
+        _plot_row_series(
+            "outlet_discharge_m3s",
+            title="Outlet discharge per step",
+            ylabel="m3/s",
+            filename="outlet_discharge_timeseries.png",
+        )
+
 
 def main() -> None:
     parser = build_parser()
@@ -461,6 +495,13 @@ def main() -> None:
     hydro_model = HydroModel(
         hydro_config,
         shape=domain.shape,
+    )
+    routing_network = build_simplified_drainage_network(domain)
+    routing_config = loaded.build_regulated_routing_config()
+    routing_model = RegulatedRoutingModel(
+        routing_config,
+        domain=domain,
+        network=routing_network,
     )
 
     run_output_dir = loaded.run_output_dir
@@ -482,10 +523,13 @@ def main() -> None:
     print(f"Spatial shape: {domain.shape}")
     print(f"Time steps: {domain.n_steps}")
     print(f"dt_seconds: {domain.time.dt_seconds}")
+    print(f"Reservoirs in domain: {len(domain.reservoirs)}")
+    print(f"Reservoir regulation enabled: {routing_config.enable_reservoirs}")
 
     for step in range(domain.n_steps):
         timestamp = domain.time.timestamps[step]
 
+        # * Execute Meteo module
         meteo_input = MeteoInput(
             domain=domain,
             step=step,
@@ -495,6 +539,7 @@ def main() -> None:
 
         meteo_output = meteo_model.step(meteo_input)
 
+        # * Execute Energy module
         energy_input = EnergyInput(
             domain=domain,
             step=step,
@@ -504,6 +549,7 @@ def main() -> None:
         )
         energy_output = energy_model.step(energy_input)
 
+        # * Exceute Hydro module
         hydro_input = HydroInput(
             domain=domain,
             step=step,
@@ -514,11 +560,23 @@ def main() -> None:
         )
         hydro_output = hydro_model.step(hydro_input)
 
+        # * Execute Routing module
+        routing_input = RegulatedRoutingInput(
+            domain=domain,
+            step=step,
+            timestamp=timestamp,
+            surface_runoff=hydro_output.surface_runoff,
+            subsurface_runoff=hydro_output.subsurface_runoff,
+            pet=energy_output.pet,
+        )
+        routing_output = routing_model.step(routing_input=routing_input)
+
         _write_step_outputs_to_dataset(
             ds=ds,
             meteo_output=meteo_output,
             energy_output=energy_output,
             hydro_output=hydro_output,
+            routing_output=routing_output,
             step=step,
         )
 
@@ -568,6 +626,13 @@ def main() -> None:
                 "subsurface_runoff_sum_mm_dt": float(
                     0.0 if hydro_output.subsurface_runoff is None else hydro_output.subsurface_runoff.sum()
                 ),
+                "channel_flow_mean_m3s": float(routing_output.channel_flow_m3s.mean()),
+                "channel_flow_max_m3s": float(routing_output.channel_flow_m3s.max()),
+                "outlet_discharge_m3s": float(routing_output.outlet_discharge_m3s),
+                "reservoir_inflow_sum_m3s": float(routing_output.reservoir_inflow_m3s.sum()),
+                "reservoir_release_sum_m3s": float(routing_output.reservoir_release_m3s.sum()),
+                "reservoir_spill_sum_m3s": float(routing_output.reservoir_spill_m3s.sum()),
+                "reservoir_storage_sum_m3": float(routing_output.reservoir_storage_m3.sum()),
             }
         )
 
@@ -582,7 +647,9 @@ def main() -> None:
             f"pet_mean={energy_output.pet.mean():.3f} mm/dt | "
             f"aet_mean={hydro_output.aet.mean():.3f} mm/dt | "
             f"soil_mean={hydro_output.soil_moisture.mean():.3f} mm | "
-            f"runoff_mean={hydro_output.surface_runoff.mean():.3f} mm/dt"
+            f"runoff_mean={hydro_output.surface_runoff.mean():.3f} mm/dt | "
+            f"channel_mean={routing_output.channel_flow_m3s.mean():.3f} m3/s | "
+            f"outlet={routing_output.outlet_discharge_m3s:.3f} m3/s"
         )
 
     dataset_path = _save_dataset(ds, output_dir=run_output_dir)

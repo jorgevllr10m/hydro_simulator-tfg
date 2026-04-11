@@ -117,8 +117,8 @@ class HydroModel:
     Notes
     -----
     - AET is computed here from PET and soil water.
-    - No routing is performed in this phase.
-    - `channel_flow` is a placeholder field until routing is implemented.
+    - This model performs only local hydrology at cell level.
+    - Channel routing and reservoir regulation are handled later by the routing module.
     """
 
     def __init__(
@@ -221,7 +221,6 @@ class HydroModel:
             infiltration=runoff.infiltration_mm_dt,
             surface_runoff=runoff.surface_runoff_mm_dt,
             subsurface_runoff=runoff.subsurface_runoff_mm_dt,
-            channel_flow=runoff.channel_flow_m3s,
             aet=soil.aet_mm_dt,
         )
 

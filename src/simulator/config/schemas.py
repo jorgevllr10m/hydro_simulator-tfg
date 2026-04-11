@@ -294,6 +294,51 @@ class HydroScenarioConfig(BaseModel):
     runoff: RunoffOverrideConfig = Field(default_factory=RunoffOverrideConfig)
 
 
+# * Routing module
+class RoutingChannelOverrideConfig(BaseModel):
+    """Optional scenario overrides for channel routing."""
+
+    channel_time_constant_hours: float | None = Field(
+        None,
+        ge=0.0,
+        description="Time constant controlling lag + attenuation in non-reservoir cells [h]",
+    )
+
+
+class ReservoirRulesOverrideConfig(BaseModel):
+    """Optional scenario overrides for simplified reservoir operating rules."""
+
+    min_release_m3s: float | None = Field(
+        None,
+        ge=0.0,
+        description="Minimum controlled release [m3/s]",
+    )
+    target_release_m3s: float | None = Field(
+        None,
+        ge=0.0,
+        description="Target controlled release in the normal zone [m3/s]",
+    )
+
+    @model_validator(mode="after")
+    def validate_rule_consistency(self) -> "ReservoirRulesOverrideConfig":
+        if self.min_release_m3s is not None and self.target_release_m3s is not None and self.target_release_m3s < self.min_release_m3s:
+            raise ValueError("'target_release_m3s' must be >= 'min_release_m3s'")
+
+        return self
+
+
+class RoutingScenarioConfig(BaseModel):
+    """Routing and reservoir-regulation overrides contained in a scenario file."""
+
+    enable_reservoirs: bool | None = Field(
+        None,
+        description="Whether reservoir regulation is enabled in the routing module",
+    )
+
+    channel: RoutingChannelOverrideConfig = Field(default_factory=RoutingChannelOverrideConfig)
+    reservoir_rules: ReservoirRulesOverrideConfig = Field(default_factory=ReservoirRulesOverrideConfig)
+
+
 # -------
 
 
@@ -303,3 +348,4 @@ class ScenarioConfig(BaseModel):
     meteo: MeteoScenarioConfig = Field(default_factory=MeteoScenarioConfig)
     energy: EnergyScenarioConfig = Field(default_factory=EnergyScenarioConfig)
     hydro: HydroScenarioConfig = Field(default_factory=HydroScenarioConfig)
+    routing: RoutingScenarioConfig = Field(default_factory=RoutingScenarioConfig)

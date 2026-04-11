@@ -51,20 +51,8 @@ class RunoffConfig:
     - <1.0 -> part of percolation is treated as deeper loss outside this MVP
     """
 
-    channel_flow_constant_m3s: float = 0.0
-    """
-    Placeholder channel-flow value per cell [m3/s] until routing is implemented.
-    """
-
     def __post_init__(self) -> None:
         _validate_fraction("subsurface_runoff_fraction", self.subsurface_runoff_fraction)
-
-        channel_flow_constant_m3s = _validate_numeric_scalar(
-            "channel_flow_constant_m3s",
-            self.channel_flow_constant_m3s,
-        )
-        if channel_flow_constant_m3s < 0.0:
-            raise ValueError(f"'channel_flow_constant_m3s' must be >= 0, got {channel_flow_constant_m3s}")
 
 
 @dataclass(frozen=True)
@@ -74,14 +62,12 @@ class RunoffFields:
     infiltration_mm_dt: FloatArray
     surface_runoff_mm_dt: FloatArray
     subsurface_runoff_mm_dt: FloatArray
-    channel_flow_m3s: FloatArray
 
     def __post_init__(self) -> None:
         array_fields = {
             "infiltration_mm_dt": self.infiltration_mm_dt,
             "surface_runoff_mm_dt": self.surface_runoff_mm_dt,
             "subsurface_runoff_mm_dt": self.subsurface_runoff_mm_dt,
-            "channel_flow_m3s": self.channel_flow_m3s,
         }
 
         for name, value in array_fields.items():
@@ -125,26 +111,6 @@ def compute_subsurface_runoff_mm_dt(
     return np.clip(subsurface_runoff_mm_dt, 0.0, None).astype(float, copy=False)
 
 
-def build_channel_flow_placeholder_m3s(
-    shape: tuple[int, int],
-    *,
-    constant_value: int | float = 0.0,
-) -> FloatArray:
-    """Return a placeholder channel-flow field until routing is implemented."""
-    if not isinstance(shape, tuple) or len(shape) != 2:
-        raise TypeError(f"'shape' must be a tuple[int, int], got {shape!r}")
-
-    ny, nx = shape
-    if not isinstance(ny, int) or not isinstance(nx, int) or ny <= 0 or nx <= 0:
-        raise ValueError(f"'shape' must contain positive integers, got {shape!r}")
-
-    constant_value = _validate_numeric_scalar("constant_value", constant_value)
-    if constant_value < 0.0:
-        raise ValueError(f"'constant_value' must be >= 0, got {constant_value}")
-
-    return np.full(shape, constant_value, dtype=float)
-
-
 def derive_runoff_fields(
     soil_fields: SoilStepFields,
     *,
@@ -172,14 +138,8 @@ def derive_runoff_fields(
         subsurface_runoff_fraction=config.subsurface_runoff_fraction,
     )
 
-    channel_flow_m3s = build_channel_flow_placeholder_m3s(
-        infiltration_mm_dt.shape,
-        constant_value=config.channel_flow_constant_m3s,
-    )
-
     return RunoffFields(
         infiltration_mm_dt=infiltration_mm_dt.astype(float, copy=False),
         surface_runoff_mm_dt=surface_runoff_mm_dt.astype(float, copy=False),
         subsurface_runoff_mm_dt=subsurface_runoff_mm_dt.astype(float, copy=False),
-        channel_flow_m3s=channel_flow_m3s.astype(float, copy=False),
     )

@@ -31,6 +31,8 @@ from simulator.meteo.background_field import BackgroundFieldConfig
 from simulator.meteo.latent_state import LatentEnvironmentConfig
 from simulator.meteo.precipitation_model import StormPrecipitationConfig
 from simulator.meteo.storm_birth import StormBirthConfig
+from simulator.routing.model import RegulatedRoutingConfig
+from simulator.routing.rules import ReservoirRulesConfig
 
 
 @dataclass(frozen=True)
@@ -220,6 +222,36 @@ class LoadedConfig:
         return HydroConfig(
             soil=soil,
             runoff=runoff,
+        )
+
+    # * Build routing module config
+    def build_regulated_routing_config(self) -> RegulatedRoutingConfig:
+        """Build internal regulated-routing config from scenario overrides.
+
+        Exposed user-facing overrides are intentionally minimal:
+        - enable_reservoirs
+        - channel_time_constant_hours
+        - min_release_m3s
+        - target_release_m3s
+
+        Other routing/reservoir parameters remain at runtime defaults.
+        """
+        routing = self.scenario.routing
+
+        channel_overrides = routing.channel.model_dump(exclude_none=True)
+        reservoir_rules_overrides = routing.reservoir_rules.model_dump(exclude_none=True)
+
+        routing_overrides: dict[str, Any] = {}
+        if routing.enable_reservoirs is not None:
+            routing_overrides["enable_reservoirs"] = routing.enable_reservoirs
+
+        routing_overrides.update(channel_overrides)
+
+        reservoir_rules = ReservoirRulesConfig(**reservoir_rules_overrides)
+
+        return RegulatedRoutingConfig(
+            reservoir_rules=reservoir_rules,
+            **routing_overrides,
         )
 
 

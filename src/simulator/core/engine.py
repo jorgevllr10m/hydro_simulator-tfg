@@ -7,7 +7,7 @@ from simulator.core.contracts import (
     HydroOutput,
     MeteoOutput,
     ObservationOutput,
-    ReservoirOutput,
+    RegulatedRoutingOutput,
 )
 from simulator.core.state import SimulationState
 from simulator.core.types import FloatArray
@@ -23,7 +23,7 @@ def merge_module_outputs(
     meteo_output: MeteoOutput,
     energy_output: EnergyOutput,
     hydro_output: HydroOutput,
-    reservoir_output: ReservoirOutput | None = None,
+    routing_output: RegulatedRoutingOutput,
     observation_output: ObservationOutput | None = None,
 ) -> SimulationState:
     """Merge module outputs into a new SimulationState.
@@ -41,9 +41,9 @@ def merge_module_outputs(
     energy_output
         Output produced by the energy/PET module.
     hydro_output
-        Output produced by the hydrology module.
-    reservoir_output
-        Optional output produced by the reservoir module.
+        Output produced by the local hydrology module.
+    routing_output
+        Output produced by the regulated routing module.
     observation_output
         Optional output produced by the observation module.
 
@@ -86,11 +86,11 @@ def merge_module_outputs(
         infiltration=hydro_output.infiltration,
         surface_runoff=hydro_output.surface_runoff,
         subsurface_runoff=hydro_output.subsurface_runoff,
-        channel_flow=hydro_output.channel_flow,
-        reservoir_inflow=None,  # TODO reservoir_inflow cuando se implemente el acoplamiento real hydro → reservoirs
-        # (continue) ese campo tendrá que venir de una salida hidrológica o de una función de enrutamiento/acoplamiento
-        reservoir_storage=(reservoir_output.reservoir_storage if reservoir_output is not None else None),
-        reservoir_release=(reservoir_output.reservoir_release if reservoir_output is not None else None),
-        reservoir_spill=(reservoir_output.reservoir_spill if reservoir_output is not None else None),
+        channel_flow=routing_output.channel_flow_m3s,
+        outlet_discharge=routing_output.outlet_discharge_m3s,
+        reservoir_inflow=routing_output.reservoir_inflow_m3s,
+        reservoir_storage=routing_output.reservoir_storage_m3,
+        reservoir_release=routing_output.reservoir_release_m3s,
+        reservoir_spill=routing_output.reservoir_spill_m3s,
         observations=observations,
     )
