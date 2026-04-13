@@ -5,6 +5,21 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
+from simulator.common.validation import (
+    validate_non_negative_scalar as _validate_non_negative_scalar,
+)
+from simulator.common.validation import (
+    validate_positive_scalar as _validate_positive_scalar,
+)
+from simulator.common.validation import (
+    validate_shape_2d as _validate_shape,
+)
+from simulator.common.validation import (
+    validate_spatial_float_array as _validate_spatial_float_array,
+)
+from simulator.common.validation import (
+    validate_vector_float_array as _validate_vector_float_array,
+)
 from simulator.core.contracts import RegulatedRoutingInput, RegulatedRoutingOutput
 from simulator.core.types import FloatArray, SimulationDomain
 from simulator.routing.network import DrainageNetwork
@@ -19,63 +34,6 @@ from simulator.routing.storage import (
 )
 
 VectorFloatArray = NDArray[np.float64]
-
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _validate_non_negative_scalar(name: str, value: int | float) -> float:
-    """Validate a non-negative numeric scalar and return it as float."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if numeric_value < 0.0:
-        raise ValueError(f"'{name}' must be >= 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_positive_scalar(name: str, value: int | float) -> float:
-    """Validate a strictly positive numeric scalar and return it as float."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if numeric_value <= 0.0:
-        raise ValueError(f"'{name}' must be > 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_spatial_float_array(name: str, value: FloatArray) -> None:
-    """Validate a 2D NumPy float array."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != 2:
-        raise ValueError(f"'{name}' must be a 2D array with shape (ny, nx), got ndim={value.ndim}")
-    if not np.issubdtype(value.dtype, np.floating):
-        raise TypeError(f"'{name}' must have a floating dtype, got {value.dtype}")
-
-
-def _validate_vector_float_array(name: str, value: VectorFloatArray) -> None:
-    """Validate a 1D NumPy float array."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != 1:
-        raise ValueError(f"'{name}' must be a 1D array, got ndim={value.ndim}")
-    if not np.issubdtype(value.dtype, np.floating):
-        raise TypeError(f"'{name}' must have a floating dtype, got {value.dtype}")
-
-
-def _validate_shape(shape: tuple[int, int]) -> tuple[int, int]:
-    """Validate a canonical spatial shape (ny, nx)."""
-    if not isinstance(shape, tuple) or len(shape) != 2:
-        raise TypeError(f"'shape' must be a tuple[int, int], got {shape!r}")
-
-    ny, nx = shape
-    if not isinstance(ny, int) or not isinstance(nx, int):
-        raise TypeError(f"'shape' must contain integers, got {shape!r}")
-    if ny <= 0 or nx <= 0:
-        raise ValueError(f"'shape' must contain positive integers, got {shape!r}")
-
-    return (ny, nx)
 
 
 def _build_initial_reservoir_storage_m3(

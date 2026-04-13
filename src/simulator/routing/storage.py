@@ -2,28 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _validate_non_negative_scalar(name: str, value: int | float) -> float:
-    """Validate a non-negative numeric scalar and return it as float."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if numeric_value < 0.0:
-        raise ValueError(f"'{name}' must be >= 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_positive_scalar(name: str, value: int | float) -> float:
-    """Validate a strictly positive numeric scalar and return it as float."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if numeric_value <= 0.0:
-        raise ValueError(f"'{name}' must be > 0, got {numeric_value}")
-    return numeric_value
+from simulator.common.validation import (
+    validate_non_negative_scalar as _validate_non_negative_scalar,
+)
+from simulator.common.validation import (
+    validate_positive_scalar as _validate_positive_scalar,
+)
 
 
 @dataclass(frozen=True)

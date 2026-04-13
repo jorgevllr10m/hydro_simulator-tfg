@@ -3,19 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from simulator.common.validation import validate_fraction as _validate_fraction
 from simulator.meteo.storm_objects import StormCell
-
-
-def _validate_fraction(name: str, value: int | float) -> float:
-    """Validate a scalar fraction in the [0, 1] interval."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-
-    numeric_value = float(value)
-    if not 0.0 <= numeric_value <= 1.0:
-        raise ValueError(f"'{name}' must be within [0, 1], got {numeric_value}")
-
-    return numeric_value
 
 
 @dataclass(frozen=True)

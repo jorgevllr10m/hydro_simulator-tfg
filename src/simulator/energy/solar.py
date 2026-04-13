@@ -4,27 +4,15 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _clamp(value: float, lower: float, upper: float) -> float:
-    """Clamp a numeric value to the [lower, upper] interval."""
-    return max(lower, min(upper, float(value)))
-
-
-def _validate_latitude_deg(latitude_deg: int | float) -> float:
-    """Validate latitude in decimal degrees."""
-    latitude_deg = _validate_numeric_scalar("latitude_deg", latitude_deg)
-
-    if not -90.0 <= latitude_deg <= 90.0:
-        raise ValueError(f"'latitude_deg' must be within [-90, 90], got {latitude_deg}")
-
-    return latitude_deg
+from simulator.common.validation import (
+    clamp as _clamp,
+)
+from simulator.common.validation import (
+    validate_latitude_deg as _validate_latitude_deg,
+)
+from simulator.common.validation import (
+    validate_numeric_scalar as _validate_numeric_scalar,
+)
 
 
 @dataclass(frozen=True)

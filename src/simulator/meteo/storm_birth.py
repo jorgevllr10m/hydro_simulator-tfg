@@ -5,47 +5,21 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from simulator.common.validation import (
+    validate_non_negative_int as _validate_non_negative_int,
+)
+from simulator.common.validation import (
+    validate_non_negative_scalar as _validate_non_negative_float,
+)
+from simulator.common.validation import (
+    validate_positive_int as _validate_positive_int,
+)
+from simulator.common.validation import (
+    validate_positive_scalar as _validate_positive_float,
+)
 from simulator.core.types import SimulationDomain
 from simulator.meteo.latent_state import StormEnvironmentInput
 from simulator.meteo.storm_objects import StormCell
-
-
-def _validate_positive_float(name: str, value: int | float) -> float:
-    """Validate a strictly positive numeric scalar."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    numeric_value = float(value)
-    if numeric_value <= 0.0:
-        raise ValueError(f"'{name}' must be > 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_non_negative_float(name: str, value: int | float) -> float:
-    """Validate a non-negative numeric scalar."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    numeric_value = float(value)
-    if numeric_value < 0.0:
-        raise ValueError(f"'{name}' must be >= 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_non_negative_int(name: str, value: int) -> int:
-    """Validate a non-negative integer."""
-    if not isinstance(value, int):
-        raise TypeError(f"'{name}' must be an int, got {type(value).__name__}")
-    if value < 0:
-        raise ValueError(f"'{name}' must be >= 0, got {value}")
-    return value
-
-
-def _validate_positive_int(name: str, value: int) -> int:
-    """Validate a strictly positive integer."""
-    if not isinstance(value, int):
-        raise TypeError(f"'{name}' must be an int, got {type(value).__name__}")
-    if value <= 0:
-        raise ValueError(f"'{name}' must be > 0, got {value}")
-    return value
 
 
 @dataclass(frozen=True)

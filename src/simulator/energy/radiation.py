@@ -4,31 +4,17 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from simulator.common.validation import (
+    validate_fraction as _validate_fraction,
+)
+from simulator.common.validation import (
+    validate_non_negative_scalar as _validate_non_negative_scalar,
+)
+from simulator.common.validation import (
+    validate_spatial_float_array as _validate_spatial_float_array,
+)
 from simulator.core.types import FloatArray
 from simulator.energy.solar import SolarGeometry
-
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _validate_non_negative_scalar(name: str, value: int | float) -> float:
-    """Validate a non-negative numeric scalar and return it as float."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if numeric_value < 0.0:
-        raise ValueError(f"'{name}' must be >= 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_fraction(name: str, value: int | float) -> float:
-    """Validate a scalar fraction in [0, 1]."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if not 0.0 <= numeric_value <= 1.0:
-        raise ValueError(f"'{name}' must be within [0, 1], got {numeric_value}")
-    return numeric_value
 
 
 @dataclass(frozen=True)
@@ -145,25 +131,6 @@ class RadiationFields:
 
         if np.any(self.net_radiation_mj_m2_dt < 0.0):
             raise ValueError("'net_radiation_mj_m2_dt' must be >= 0 everywhere")
-
-
-def _validate_spatial_float_array(name: str, value: FloatArray) -> None:
-    """Validate a 2D NumPy float array."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != 2:
-        raise ValueError(f"'{name}' must be a 2D array with shape (ny, nx), got ndim={value.ndim}")
-    if not np.issubdtype(value.dtype, np.floating):
-        raise TypeError(f"'{name}' must have a floating dtype, got {value.dtype}")
-
-
-def _broadcast_scalar_to_shape(
-    value: int | float,
-    shape: tuple[int, int],
-) -> FloatArray:
-    """Return a 2D float field filled with a scalar value."""
-    scalar_value = _validate_numeric_scalar("value", value)
-    return np.full(shape, scalar_value, dtype=float)
 
 
 def compute_toa_shortwave_w_m2(

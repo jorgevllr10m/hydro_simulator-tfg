@@ -7,13 +7,9 @@ from enum import Enum
 
 import numpy as np
 
+from simulator.common.validation import clamp01 as _clamp01
 from simulator.meteo.advection import AdvectionField
 from simulator.meteo.regimes import MeteorologicalRegime, get_regime_profile
-
-
-def _clamp01(value: float) -> float:
-    """Clamp a numeric value to the [0, 1] interval."""
-    return max(0.0, min(1.0, float(value)))
 
 
 class ThermalScenario(str, Enum):

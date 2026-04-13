@@ -5,6 +5,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from simulator.common.validation import (
+    validate_non_negative_scalar as _validate_non_negative_float,
+)
+from simulator.common.validation import (
+    validate_positive_scalar as _validate_positive_float,
+)
 from simulator.core.types import BoolArray, FloatArray, SimulationDomain
 from simulator.meteo.lifecycle import (
     StormLifecycleConfig,
@@ -12,26 +18,6 @@ from simulator.meteo.lifecycle import (
     compute_current_intensity_mmph,
 )
 from simulator.meteo.storm_objects import StormCell
-
-
-def _validate_positive_float(name: str, value: int | float) -> float:
-    """Validate a strictly positive numeric scalar."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    numeric_value = float(value)
-    if numeric_value <= 0.0:
-        raise ValueError(f"'{name}' must be > 0, got {numeric_value}")
-    return numeric_value
-
-
-def _validate_non_negative_float(name: str, value: int | float) -> float:
-    """Validate a non-negative numeric scalar."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    numeric_value = float(value)
-    if numeric_value < 0.0:
-        raise ValueError(f"'{name}' must be >= 0, got {numeric_value}")
-    return numeric_value
 
 
 @dataclass(frozen=True)

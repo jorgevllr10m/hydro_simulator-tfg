@@ -4,33 +4,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from simulator.common.validation import (
+    validate_fraction as _validate_fraction,
+)
+from simulator.common.validation import (
+    validate_spatial_float_array as _validate_spatial_float_array,
+)
 from simulator.core.types import FloatArray
 from simulator.hydro.soil import SoilStepFields
-
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _validate_fraction(name: str, value: int | float) -> float:
-    """Validate a scalar fraction in [0, 1]."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if not 0.0 <= numeric_value <= 1.0:
-        raise ValueError(f"'{name}' must be within [0, 1], got {numeric_value}")
-    return numeric_value
-
-
-def _validate_spatial_float_array(name: str, value: FloatArray) -> None:
-    """Validate a 2D NumPy float array."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != 2:
-        raise ValueError(f"'{name}' must be a 2D array with shape (ny, nx), got ndim={value.ndim}")
-    if not np.issubdtype(value.dtype, np.floating):
-        raise TypeError(f"'{name}' must have a floating dtype, got {value.dtype}")
 
 
 @dataclass(frozen=True)

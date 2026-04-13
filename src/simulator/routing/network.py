@@ -6,32 +6,18 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from simulator.common.validation import (
+    validate_int_array as _validate_int_array,
+)
+from simulator.common.validation import (
+    validate_spatial_bool_array as _validate_bool_mask,
+)
 from simulator.core.types import BoolArray, SimulationDomain
 
 IntArray = NDArray[np.int_]
 
 OUTSIDE_BASIN_INDEX = -2  # The cell is outside the basin
 NO_DOWNSTREAM_INDEX = -1  # That cell is indeed in the basin, but it doesn't have downstream because it's the outlet
-
-
-def _validate_bool_mask(name: str, value: BoolArray) -> None:
-    """Validate a 2D boolean NumPy mask."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != 2:
-        raise ValueError(f"'{name}' must be a 2D array with shape (ny, nx), got ndim={value.ndim}")
-    if value.dtype != np.bool_:
-        raise TypeError(f"'{name}' must have boolean dtype, got {value.dtype}")
-
-
-def _validate_int_array(name: str, value: IntArray, *, ndim: int) -> None:
-    """Validate a NumPy integer array with a fixed number of dimensions."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
-    if value.ndim != ndim:
-        raise ValueError(f"'{name}' must be a {ndim}D array, got ndim={value.ndim}")
-    if not np.issubdtype(value.dtype, np.integer):
-        raise TypeError(f"'{name}' must have integer dtype, got {value.dtype}")
 
 
 def _flatten_cell_index(

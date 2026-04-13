@@ -4,29 +4,18 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from simulator.common.validation import (
+    clamp01 as _clamp01,
+)
+from simulator.common.validation import (
+    validate_fraction as _validate_fraction,
+)
+from simulator.common.validation import (
+    validate_numeric_scalar as _validate_numeric_scalar,
+)
 from simulator.core.types import FloatArray, SimulationDomain
 from simulator.meteo.latent_state import LatentEnvironmentState
 from simulator.meteo.regimes import MeteorologicalRegime
-
-
-def _validate_numeric_scalar(name: str, value: int | float) -> float:
-    """Validate a numeric scalar and return it as float."""
-    if not isinstance(value, (int, float)):
-        raise TypeError(f"'{name}' must be numeric, got {type(value).__name__}")
-    return float(value)
-
-
-def _validate_fraction(name: str, value: int | float) -> float:
-    """Validate a scalar fraction within [0, 1]."""
-    numeric_value = _validate_numeric_scalar(name, value)
-    if not 0.0 <= numeric_value <= 1.0:
-        raise ValueError(f"'{name}' must be within [0, 1], got {numeric_value}")
-    return numeric_value
-
-
-def _clamp01(value: float) -> float:
-    """Clamp a numeric value to the [0, 1] interval."""
-    return max(0.0, min(1.0, float(value)))
 
 
 def build_uniform_spatial_field(
