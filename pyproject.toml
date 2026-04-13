@@ -32,6 +32,8 @@ dev = [
 
 [project.scripts]
 hydro-sim = "simulator.cli.run:main"
+hydro-sim-validate = "simulator.cli.validate:main"
+hydro-sim-plot = "simulator.cli.plot:main"
 
 # Indica a setuptools dónde encontrar los archivos .py
 [tool.setuptools]

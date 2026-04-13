@@ -19,4 +19,28 @@ reservoirs:
       capacity: 5000000.0
       initial_storage: 2500000.0
 
-sensors: []
+sensors:
+  - name: rain_gauge_upper
+    sensor_type: precipitation
+    cell_y: 10
+    cell_x: 15
+
+  - name: rain_gauge_middle
+    sensor_type: precipitation
+    cell_y: 30
+    cell_x: 40
+
+  - name: flow_sensor_outlet
+    sensor_type: discharge
+    cell_y: 59
+    cell_x: 79
+
+  - name: storage_sensor_upper_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 15
+    cell_x: 20
+
+  - name: storage_sensor_middle_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 35
+    cell_x: 50

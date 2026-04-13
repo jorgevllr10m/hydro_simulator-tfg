@@ -6,11 +6,9 @@ from simulator.core.contracts import (
     EnergyOutput,
     HydroOutput,
     MeteoOutput,
-    ObservationOutput,
     RegulatedRoutingOutput,
 )
 from simulator.core.state import SimulationState
-from simulator.core.types import FloatArray
 
 
 def merge_module_outputs(
@@ -24,9 +22,8 @@ def merge_module_outputs(
     energy_output: EnergyOutput,
     hydro_output: HydroOutput,
     routing_output: RegulatedRoutingOutput,
-    observation_output: ObservationOutput | None = None,
 ) -> SimulationState:
-    """Merge module outputs into a new SimulationState.
+    """Merge physical module outputs into a new SimulationState.
 
     Parameters
     ----------
@@ -44,33 +41,12 @@ def merge_module_outputs(
         Output produced by the local hydrology module.
     routing_output
         Output produced by the regulated routing module.
-    observation_output
-        Optional output produced by the observation module.
 
     Returns
     -------
     SimulationState
-        New simulation state for the current step.
+        New physical simulation state for the current step.
     """
-    # TODO rediseñar el manejo de observations para incluir obs_mask y obs_quality_flag o mover observaciones fuera del estado físico.
-    # (continue del TODO) (state.py / engine.py)
-    # Cuando se implemente de verdad la capa observacional habrá que decidir una de estas dos cosas:
-    # o ampliar SimulationState.observations
-    # para aceptar bool/int o sacar las observaciones del estado físico y escribirlas directo al dataset observacional.
-    observations: dict[str, FloatArray] | None = None
-
-    if observation_output is not None:
-        observations = {}
-
-        if observation_output.obs_precipitation is not None:
-            observations["obs_precipitation"] = observation_output.obs_precipitation
-
-        if observation_output.obs_discharge is not None:
-            observations["obs_discharge"] = observation_output.obs_discharge
-
-        if observation_output.obs_storage is not None:
-            observations["obs_storage"] = observation_output.obs_storage
-
     return SimulationState(
         step=step,
         timestamp=timestamp,
@@ -92,5 +68,4 @@ def merge_module_outputs(
         reservoir_storage=routing_output.reservoir_storage_m3,
         reservoir_release=routing_output.reservoir_release_m3s,
         reservoir_spill=routing_output.reservoir_spill_m3s,
-        observations=observations,
     )

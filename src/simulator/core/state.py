@@ -45,8 +45,6 @@ class SimulationState:
     reservoir_release: FloatArray | None = None
     reservoir_spill: FloatArray | None = None
 
-    observations: dict[str, FloatArray] | None = None
-
     def __post_init__(self) -> None:
         """Validate dynamic state fields."""
         if not isinstance(self.step, int) or self.step < 0:
@@ -140,14 +138,6 @@ class SimulationState:
             for name, value in present_reservoir_fields.items():
                 if value.shape[0] != expected_length:
                     raise ValueError(f"'{name}' must have length {expected_length}, got {value.shape[0]}")
-
-        if self.observations is not None:
-            if not isinstance(self.observations, dict):
-                raise TypeError(f"'observations' must be a dict[str, FloatArray] or None, got {type(self.observations).__name__}")
-            for key, value in self.observations.items():
-                if not isinstance(key, str):
-                    raise TypeError(f"Observation keys must be strings, got {type(key).__name__}")
-                self._validate_array(f"observations[{key!r}]", value)
 
     @staticmethod
     def _validate_array(name: str, value: FloatArray) -> None:

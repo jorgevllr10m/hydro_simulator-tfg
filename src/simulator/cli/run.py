@@ -11,18 +11,31 @@ import numpy as np
 from simulator.config.loader import load_config
 from simulator.core.contracts import (
     EnergyInput,
-    EnergyOutput,
     HydroInput,
-    HydroOutput,
     MeteoInput,
     MeteoOutput,
+    ObservationInput,
+    ObservationOutput,
     RegulatedRoutingInput,
     RegulatedRoutingOutput,
 )
-from simulator.core.dataset import create_empty_dataset
+from simulator.core.dataset import (
+    create_empty_observation_dataset,
+    create_empty_truth_dataset,
+    write_observation_to_dataset,
+    write_state_to_dataset,
+)
+from simulator.core.engine import merge_module_outputs
 from simulator.energy.model import EnergyBalanceModel
 from simulator.hydro.model import HydroModel
 from simulator.meteo.precipitation_model import StormPrecipitationModel
+from simulator.obs.model import (
+    DISCHARGE_SENSOR_TYPE,
+    PRECIPITATION_SENSOR_TYPE,
+    RESERVOIR_STORAGE_SENSOR_TYPE,
+    ObservationModel,
+    ObservationQualityFlag,
+)
 from simulator.routing.model import RegulatedRoutingModel
 from simulator.routing.network import build_simplified_drainage_network
 
@@ -39,46 +52,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the master YAML configuration file.",
     )
     return parser
-
-
-def _write_step_outputs_to_dataset(
-    *,
-    ds,
-    meteo_output: MeteoOutput,
-    energy_output: EnergyOutput,
-    hydro_output: HydroOutput,
-    routing_output: RegulatedRoutingOutput,
-    step: int,
-) -> None:
-    """Write meteorological, energy, hydrological and routing outputs into the historical dataset."""
-    ds["precipitation"][step, :, :] = meteo_output.precipitation
-    ds["air_temperature"][step, :, :] = meteo_output.air_temperature
-
-    ds["pet"][step, :, :] = energy_output.pet
-    ds["shortwave_radiation"][step, :, :] = energy_output.shortwave_radiation
-    ds["net_radiation"][step, :, :] = energy_output.net_radiation
-
-    ds["aet"][step, :, :] = hydro_output.aet
-    ds["soil_moisture"][step, :, :] = hydro_output.soil_moisture
-    ds["infiltration"][step, :, :] = hydro_output.infiltration
-    ds["surface_runoff"][step, :, :] = hydro_output.surface_runoff
-    ds["channel_flow"][step, :, :] = routing_output.channel_flow_m3s
-    ds["outlet_discharge"][step] = routing_output.outlet_discharge_m3s
-
-    if hydro_output.subsurface_runoff is not None:
-        ds["subsurface_runoff"][step, :, :] = hydro_output.subsurface_runoff
-
-    if routing_output.reservoir_inflow_m3s.size > 0:
-        ds["reservoir_inflow"][step, :] = routing_output.reservoir_inflow_m3s
-        ds["reservoir_storage"][step, :] = routing_output.reservoir_storage_m3
-        ds["reservoir_release"][step, :] = routing_output.reservoir_release_m3s
-        ds["reservoir_spill"][step, :] = routing_output.reservoir_spill_m3s
-
-    if meteo_output.background_precipitation is not None:
-        ds["background_precipitation"][step, :, :] = meteo_output.background_precipitation
-
-    if meteo_output.storm_mask is not None:
-        ds["storm_mask"][step, :, :] = meteo_output.storm_mask
 
 
 def _write_summary_csv(
@@ -112,7 +85,120 @@ def _write_summary_csv(
         writer.writerows(formatted_rows)
 
 
-def _save_dataset(ds, *, output_dir: Path) -> Path:
+def _quality_flag_label(flag_value: int) -> str:
+    """Return a human-readable label for one observation quality flag."""
+    try:
+        return ObservationQualityFlag(int(flag_value)).name.lower()
+    except ValueError:
+        return "unknown"
+
+
+def _extract_sensor_truth_value(
+    *,
+    domain,
+    sensor,
+    meteo_output: MeteoOutput,
+    routing_output: RegulatedRoutingOutput,
+) -> float:
+    """Return the truth value associated with one sensor at the current step."""
+    sensor_type = sensor.sensor_type
+
+    if sensor_type == PRECIPITATION_SENSOR_TYPE:
+        return float(meteo_output.precipitation[sensor.cell_y, sensor.cell_x])
+
+    if sensor_type == DISCHARGE_SENSOR_TYPE:
+        return float(routing_output.channel_flow_m3s[sensor.cell_y, sensor.cell_x])
+
+    if sensor_type == RESERVOIR_STORAGE_SENSOR_TYPE:
+        for reservoir_id, reservoir in enumerate(domain.reservoirs):
+            if reservoir.cell_y == sensor.cell_y and reservoir.cell_x == sensor.cell_x:
+                return float(routing_output.reservoir_storage_m3[reservoir_id])
+
+        raise ValueError(
+            f"Sensor '{sensor.name}' of type '{sensor_type}' does not match any reservoir cell at {(sensor.cell_y, sensor.cell_x)}."
+        )
+
+    raise ValueError(f"Unsupported sensor_type {sensor_type!r} for sensor '{sensor.name}'.")
+
+
+def _extract_sensor_observed_value(
+    *,
+    sensor_type: str,
+    sensor_index: int,
+    observation_output: ObservationOutput,
+) -> float:
+    """Return the observed value stored in the matching observation array."""
+    if sensor_type == PRECIPITATION_SENSOR_TYPE:
+        assert observation_output.obs_precipitation is not None
+        return float(observation_output.obs_precipitation[sensor_index])
+
+    if sensor_type == DISCHARGE_SENSOR_TYPE:
+        assert observation_output.obs_discharge is not None
+        return float(observation_output.obs_discharge[sensor_index])
+
+    if sensor_type == RESERVOIR_STORAGE_SENSOR_TYPE:
+        assert observation_output.obs_storage is not None
+        return float(observation_output.obs_storage[sensor_index])
+
+    raise ValueError(f"Unsupported sensor_type {sensor_type!r}.")
+
+
+def _build_observation_rows(
+    *,
+    domain,
+    step: int,
+    timestamp,
+    meteo_output: MeteoOutput,
+    routing_output: RegulatedRoutingOutput,
+    observation_output: ObservationOutput,
+) -> list[dict[str, object]]:
+    """Flatten one observation step into per-sensor CSV rows."""
+    rows: list[dict[str, object]] = []
+
+    assert observation_output.obs_mask is not None
+    assert observation_output.obs_quality_flag is not None
+
+    for sensor_index, sensor in enumerate(domain.sensors):
+        truth_value = _extract_sensor_truth_value(
+            domain=domain,
+            sensor=sensor,
+            meteo_output=meteo_output,
+            routing_output=routing_output,
+        )
+        observed_value = _extract_sensor_observed_value(
+            sensor_type=sensor.sensor_type,
+            sensor_index=sensor_index,
+            observation_output=observation_output,
+        )
+
+        quality_flag = int(observation_output.obs_quality_flag[sensor_index])
+
+        rows.append(
+            {
+                "step": step,
+                "timestamp": timestamp.strftime("%d/%m/%y %H:%M:%S"),
+                "sensor_index": sensor_index,
+                "sensor_name": sensor.name,
+                "sensor_type": sensor.sensor_type,
+                "cell_y": sensor.cell_y,
+                "cell_x": sensor.cell_x,
+                "truth_value": truth_value,
+                "observed_value": observed_value,
+                "observation_available": int(bool(observation_output.obs_mask[sensor_index])),
+                "quality_flag": quality_flag,
+                "quality_label": _quality_flag_label(quality_flag),
+            }
+        )
+
+    return rows
+
+
+def _save_dataset(
+    ds,
+    *,
+    output_dir: Path,
+    file_stem: str,
+) -> Path:
     """Persist the dataset to disk.
 
     Preferred format is NetCDF. If the required backend is not available,
@@ -120,12 +206,12 @@ def _save_dataset(ds, *, output_dir: Path) -> Path:
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    netcdf_path = output_dir / "simulation_dataset.nc"
+    netcdf_path = output_dir / f"{file_stem}.nc"
     try:
         ds.to_netcdf(netcdf_path)
         return netcdf_path
     except Exception:
-        pickle_path = output_dir / "simulation_dataset.pkl"
+        pickle_path = output_dir / f"{file_stem}.pkl"
         with pickle_path.open("wb") as file:
             pickle.dump(ds, file)
         return pickle_path
@@ -503,16 +589,26 @@ def main() -> None:
         domain=domain,
         network=routing_network,
     )
+    observation_config = loaded.build_observation_config()
+    observation_model = ObservationModel(observation_config)
 
     run_output_dir = loaded.run_output_dir
     run_output_dir.mkdir(parents=True, exist_ok=True)
 
-    ds = create_empty_dataset(domain)
-    ds.attrs["run_name"] = loaded.run_name
-    ds.attrs["domain_preset"] = loaded.domain_preset_name
-    ds.attrs["scenario_name"] = loaded.scenario_name
+    truth_ds = create_empty_truth_dataset(domain)
+    observation_ds = create_empty_observation_dataset(domain)
+    truth_ds.attrs["run_name"] = loaded.run_name
+    truth_ds.attrs["domain_preset"] = loaded.domain_preset_name
+    truth_ds.attrs["scenario_name"] = loaded.scenario_name
+
+    observation_ds.attrs["run_name"] = loaded.run_name
+    observation_ds.attrs["domain_preset"] = loaded.domain_preset_name
+    observation_ds.attrs["scenario_name"] = loaded.scenario_name
 
     summary_rows: list[dict[str, object]] = []
+    observation_rows: list[dict[str, object]] = []
+
+    previous_state = None
 
     print("Synthetic Basin Simulator")
     print(f"Configuration path: {loaded.config_path}")
@@ -525,6 +621,7 @@ def main() -> None:
     print(f"dt_seconds: {domain.time.dt_seconds}")
     print(f"Reservoirs in domain: {len(domain.reservoirs)}")
     print(f"Reservoir regulation enabled: {routing_config.enable_reservoirs}")
+    print(f"Sensors in domain: {len(domain.sensors)}")
 
     for step in range(domain.n_steps):
         timestamp = domain.time.timestamps[step]
@@ -549,7 +646,7 @@ def main() -> None:
         )
         energy_output = energy_model.step(energy_input)
 
-        # * Exceute Hydro module
+        # * Execute Hydro module
         hydro_input = HydroInput(
             domain=domain,
             step=step,
@@ -571,17 +668,56 @@ def main() -> None:
         )
         routing_output = routing_model.step(routing_input=routing_input)
 
-        _write_step_outputs_to_dataset(
-            ds=ds,
-            meteo_output=meteo_output,
-            energy_output=energy_output,
-            hydro_output=hydro_output,
-            routing_output=routing_output,
+        # * Execute Observation module
+        observation_input = ObservationInput(
+            domain=domain,
             step=step,
+            timestamp=timestamp,
+            precipitation=meteo_output.precipitation,
+            channel_flow=routing_output.channel_flow_m3s,
+            reservoir_storage=routing_output.reservoir_storage_m3,
+        )
+        observation_output = observation_model.step(observation_input)
+
+        observation_rows.extend(
+            _build_observation_rows(
+                domain=domain,
+                step=step,
+                timestamp=timestamp,
+                meteo_output=meteo_output,
+                routing_output=routing_output,
+                observation_output=observation_output,
+            )
         )
 
         diagnostics = meteo_model.latest_diagnostics
         assert diagnostics is not None
+
+        observation_diagnostics = observation_model.latest_diagnostics
+        assert observation_diagnostics is not None
+
+        state = merge_module_outputs(
+            previous_state=previous_state,
+            step=step,
+            timestamp=timestamp,
+            meteo_output=meteo_output,
+            energy_output=energy_output,
+            hydro_output=hydro_output,
+            routing_output=routing_output,
+        )
+
+        previous_state = state
+
+        truth_ds = write_state_to_dataset(
+            truth_ds,
+            state,
+        )
+
+        observation_ds = write_observation_to_dataset(
+            observation_ds,
+            observation_output,
+            step=step,
+        )
 
         total_precipitation_sum = float(meteo_output.precipitation.sum())
         total_precipitation_max = float(meteo_output.precipitation.max())
@@ -633,6 +769,9 @@ def main() -> None:
                 "reservoir_release_sum_m3s": float(routing_output.reservoir_release_m3s.sum()),
                 "reservoir_spill_sum_m3s": float(routing_output.reservoir_spill_m3s.sum()),
                 "reservoir_storage_sum_m3": float(routing_output.reservoir_storage_m3.sum()),
+                "obs_available_count": int(observation_diagnostics.n_available),
+                "obs_missing_count": int(observation_diagnostics.n_missing),
+                "obs_censored_count": int(observation_diagnostics.n_censored),
             }
         )
 
@@ -649,10 +788,22 @@ def main() -> None:
             f"soil_mean={hydro_output.soil_moisture.mean():.3f} mm | "
             f"runoff_mean={hydro_output.surface_runoff.mean():.3f} mm/dt | "
             f"channel_mean={routing_output.channel_flow_m3s.mean():.3f} m3/s | "
-            f"outlet={routing_output.outlet_discharge_m3s:.3f} m3/s"
+            f"outlet={routing_output.outlet_discharge_m3s:.3f} m3/s | "
+            f"obs_avail={observation_diagnostics.n_available} | "
+            f"obs_missing={observation_diagnostics.n_missing} | "
+            f"obs_censored={observation_diagnostics.n_censored}"
         )
 
-    dataset_path = _save_dataset(ds, output_dir=run_output_dir)
+    truth_dataset_path = _save_dataset(
+        truth_ds,
+        output_dir=run_output_dir,
+        file_stem="simulation_truth",
+    )
+    observation_dataset_path = _save_dataset(
+        observation_ds,
+        output_dir=run_output_dir,
+        file_stem="simulation_observations",
+    )
 
     summary_csv_path = run_output_dir / "simulation_summary.csv"
     _write_summary_csv(
@@ -660,16 +811,24 @@ def main() -> None:
         output_path=summary_csv_path,
     )
 
+    observation_csv_path = run_output_dir / "simulation_observations.csv"
+    _write_summary_csv(
+        rows=observation_rows,
+        output_path=observation_csv_path,
+    )
+
     _save_quicklook_plots(
-        ds=ds,
+        ds=truth_ds,
         rows=summary_rows,
         output_dir=run_output_dir,
     )
 
     print("Run completed successfully.")
-    print(f"Dataset written to: {dataset_path}")
+    print(f"Truth dataset written to: {truth_dataset_path}")
+    print(f"Observation dataset written to: {observation_dataset_path}")
     print(f"Plots written to: {run_output_dir / 'plots'}")
     print(f"Step summary CSV: {summary_csv_path}")
+    print(f"Observation CSV: {observation_csv_path}")
 
 
 if __name__ == "__main__":

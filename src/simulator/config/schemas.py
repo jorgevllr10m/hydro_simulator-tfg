@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from simulator.meteo.latent_state import MoistureScenario, ThermalScenario
 from simulator.meteo.regimes import MeteorologicalRegime
+from simulator.obs.model import (
+    SUPPORTED_SENSOR_TYPES,
+)
 
 
 class GridConfig(BaseModel):
@@ -45,6 +48,18 @@ class SensorConfig(BaseModel):
     sensor_type: str = Field(..., min_length=1, description="Type of observed variable")
     cell_y: int = Field(..., ge=0, description="Sensor y-index in the grid")
     cell_x: int = Field(..., ge=0, description="Sensor x-index in the grid")
+
+    @field_validator("sensor_type")
+    @classmethod
+    def validate_supported_sensor_type(cls, value: str) -> str:
+        """Normalize and validate the supported sensor type."""
+        normalized = value.strip().lower()
+
+        if normalized not in SUPPORTED_SENSOR_TYPES:
+            supported = ", ".join(sorted(SUPPORTED_SENSOR_TYPES))
+            raise ValueError(f"'sensor_type' must be one of: {supported}")
+
+        return normalized
 
 
 class RunConfig(BaseModel):
@@ -339,6 +354,84 @@ class RoutingScenarioConfig(BaseModel):
     reservoir_rules: ReservoirRulesOverrideConfig = Field(default_factory=ReservoirRulesOverrideConfig)
 
 
+# * Observation module
+class PrecipitationObservationOverrideConfig(BaseModel):
+    """Optional scenario overrides for precipitation observations."""
+
+    enabled: bool | None = Field(
+        None,
+        description="Whether precipitation sensors are enabled",
+    )
+    noise_std_mm_dt: float | None = Field(
+        None,
+        ge=0.0,
+        description="Absolute observation-noise standard deviation for precipitation [mm/dt]",
+    )
+    missing_probability: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a precipitation observation is missing",
+    )
+    detection_threshold_mm_dt: float | None = Field(
+        None,
+        ge=0.0,
+        description="Left-censoring / detection threshold for precipitation [mm/dt]",
+    )
+
+
+class DischargeObservationOverrideConfig(BaseModel):
+    """Optional scenario overrides for discharge observations."""
+
+    enabled: bool | None = Field(
+        None,
+        description="Whether discharge sensors are enabled",
+    )
+    relative_noise_std: float | None = Field(
+        None,
+        ge=0.0,
+        description="Relative observation-noise standard deviation for discharge [-]",
+    )
+    missing_probability: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Probability that a discharge observation is missing",
+    )
+    detection_threshold_m3s: float | None = Field(
+        None,
+        ge=0.0,
+        description="Left-censoring / detection threshold for discharge [m3/s]",
+    )
+
+
+class ReservoirStorageObservationOverrideConfig(BaseModel):
+    """Optional scenario overrides for reservoir-storage observations."""
+
+    enabled: bool | None = Field(
+        None,
+        description="Whether reservoir-storage sensors are enabled",
+    )
+    noise_std_m3: float | None = Field(
+        None,
+        ge=0.0,
+        description="Absolute observation-noise standard deviation for reservoir storage [m3]",
+    )
+
+
+class ObservationScenarioConfig(BaseModel):
+    """Observation-layer overrides contained in a scenario file."""
+
+    random_seed: int | None = Field(
+        None,
+        description="Random seed for the observation operator",
+    )
+
+    precipitation: PrecipitationObservationOverrideConfig = Field(default_factory=PrecipitationObservationOverrideConfig)
+    discharge: DischargeObservationOverrideConfig = Field(default_factory=DischargeObservationOverrideConfig)
+    reservoir_storage: ReservoirStorageObservationOverrideConfig = Field(default_factory=ReservoirStorageObservationOverrideConfig)
+
+
 # -------
 
 
@@ -349,3 +442,4 @@ class ScenarioConfig(BaseModel):
     energy: EnergyScenarioConfig = Field(default_factory=EnergyScenarioConfig)
     hydro: HydroScenarioConfig = Field(default_factory=HydroScenarioConfig)
     routing: RoutingScenarioConfig = Field(default_factory=RoutingScenarioConfig)
+    obs: ObservationScenarioConfig = Field(default_factory=ObservationScenarioConfig)

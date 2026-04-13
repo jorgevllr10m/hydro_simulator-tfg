@@ -80,27 +80,27 @@ class ReservoirRulesConfig:
       if storage still exceeds capacity.
     """
 
-    min_release_m3s: float = 1.0
+    min_release_m3s: float = 0.2
     """
     Minimum you try to release when the reservoir is low.
     """
 
-    target_release_m3s: float = 5.0
+    target_release_m3s: float = 1.5
     """
     Typical release when in normal zone.
     """
 
-    max_controlled_release_m3s: float = 20.0
+    max_controlled_release_m3s: float = 6.0
     """
     Maximum controlled release that the reservoir attempts to release before the spill comes into play.
     """
 
-    conservation_fraction: float = 0.35
+    conservation_fraction: float = 0.5
     """
     It is the threshold below which the reservoir is in conservation mode.
     """
 
-    flood_fraction: float = 0.80
+    flood_fraction: float = 0.90
     """
     It is the threshold from which it enters avenue control mode.
     """

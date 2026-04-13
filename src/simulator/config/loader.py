@@ -31,6 +31,12 @@ from simulator.meteo.background_field import BackgroundFieldConfig
 from simulator.meteo.latent_state import LatentEnvironmentConfig
 from simulator.meteo.precipitation_model import StormPrecipitationConfig
 from simulator.meteo.storm_birth import StormBirthConfig
+from simulator.obs.model import (
+    DischargeObservationConfig,
+    ObservationConfig,
+    PrecipitationObservationConfig,
+    ReservoirStorageObservationConfig,
+)
 from simulator.routing.model import RegulatedRoutingConfig
 from simulator.routing.rules import ReservoirRulesConfig
 
@@ -252,6 +258,51 @@ class LoadedConfig:
         return RegulatedRoutingConfig(
             reservoir_rules=reservoir_rules,
             **routing_overrides,
+        )
+
+    # * Build observation module config
+    def build_observation_config(self) -> ObservationConfig:
+        """Build internal observation config from scenario overrides.
+
+        Defaults are defined in the runtime dataclasses themselves.
+        The scenario file only provides optional overrides.
+
+        This means:
+        - omitted YAML fields do not need to be written
+        - omitted YAML fields fall back to runtime defaults
+
+        Additional convention used here:
+        - if a detection threshold is explicitly provided and is > 0,
+          left-censoring is enabled internally
+        - if the threshold is omitted, the runtime default is kept
+        """
+        obs = self.scenario.obs
+
+        precipitation_overrides = obs.precipitation.model_dump(exclude_none=True)
+        discharge_overrides = obs.discharge.model_dump(exclude_none=True)
+        reservoir_storage_overrides = obs.reservoir_storage.model_dump(exclude_none=True)
+
+        precipitation_threshold = precipitation_overrides.get("detection_threshold_mm_dt")
+        if precipitation_threshold is not None:
+            precipitation_overrides["censor_below_threshold"] = precipitation_threshold > 0.0
+
+        discharge_threshold = discharge_overrides.get("detection_threshold_m3s")
+        if discharge_threshold is not None:
+            discharge_overrides["censor_below_threshold"] = discharge_threshold > 0.0
+
+        precipitation = PrecipitationObservationConfig(**precipitation_overrides)
+        discharge = DischargeObservationConfig(**discharge_overrides)
+        reservoir_storage = ReservoirStorageObservationConfig(**reservoir_storage_overrides)
+
+        observation_overrides: dict[str, Any] = {}
+        if obs.random_seed is not None:
+            observation_overrides["random_seed"] = obs.random_seed
+
+        return ObservationConfig(
+            precipitation=precipitation,
+            discharge=discharge,
+            reservoir_storage=reservoir_storage,
+            **observation_overrides,
         )
 
 

@@ -7,3 +7,6 @@ meteo:
     storm_birth:
         expected_births_per_step: 1.0
         max_new_storms_per_step: 8
+
+routing:
+  channel_time_constant_hours: 1.0
