@@ -193,6 +193,11 @@ def _empty_spatial_time_array(n_steps: int, ny: int, nx: int) -> np.ndarray:
     return np.full((n_steps, ny, nx), np.nan, dtype=float)
 
 
+def _empty_spatial_time_bool_array(n_steps: int, ny: int, nx: int) -> np.ndarray:
+    """Create an empty 3D boolean array filled with False."""
+    return np.zeros((n_steps, ny, nx), dtype=bool)
+
+
 def _empty_time_reservoir_array(n_steps: int, n_reservoirs: int) -> np.ndarray:
     """Create an empty 2D float array filled with NaN."""
     return np.full((n_steps, n_reservoirs), np.nan, dtype=float)
@@ -289,7 +294,7 @@ def create_empty_truth_dataset(domain: SimulationDomain) -> xr.Dataset:
         dims=TRUTH_VARIABLE_SPECS["background_precipitation"].dims,
     )
     ds["storm_mask"] = xr.DataArray(
-        _empty_spatial_time_array(n_steps, ny, nx),
+        _empty_spatial_time_bool_array(n_steps, ny, nx),
         dims=TRUTH_VARIABLE_SPECS["storm_mask"].dims,
     )
     ds["air_temperature"] = xr.DataArray(

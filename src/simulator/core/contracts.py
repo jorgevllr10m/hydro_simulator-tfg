@@ -31,9 +31,7 @@ class MeteoOutput:
     precipitation: FloatArray
     air_temperature: FloatArray
     background_precipitation: FloatArray | None = None
-    storm_mask: FloatArray | None = (
-        None  # TODO decidir si storm_mask debe ser booleano estricto en vez de float 2D (contracts.py /state.py)
-    )
+    storm_mask: BoolArray | None = None
 
     def __post_init__(self) -> None:
         SimulationState._validate_spatial_field("precipitation", self.precipitation)
@@ -46,10 +44,7 @@ class MeteoOutput:
             )
 
         if self.storm_mask is not None:
-            if not isinstance(self.storm_mask, np.ndarray):
-                raise TypeError(f"'storm_mask' must be a numpy.ndarray, got {type(self.storm_mask).__name__}")
-            if self.storm_mask.ndim != 2:
-                raise ValueError(f"'storm_mask' must be a 2D array with shape (ny, nx), got ndim={self.storm_mask.ndim}")
+            SimulationState._validate_spatial_bool_field("storm_mask", self.storm_mask)
 
 
 @dataclass(frozen=True)
@@ -90,12 +85,10 @@ class HydroInput:
     timestamp: datetime
     precipitation: FloatArray
     pet: FloatArray
-    soil_moisture_prev: FloatArray
 
     def __post_init__(self) -> None:
         SimulationState._validate_spatial_field("precipitation", self.precipitation)
         SimulationState._validate_spatial_field("pet", self.pet)
-        SimulationState._validate_spatial_field("soil_moisture_prev", self.soil_moisture_prev)
 
 
 @dataclass(frozen=True)

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from simulator.core.types import FloatArray, SimulationDomain
+from simulator.core.types import BoolArray, FloatArray, SimulationDomain
 from simulator.meteo.lifecycle import (
     StormLifecycleConfig,
     compute_current_axes_m,
@@ -121,7 +121,7 @@ def render_storm_mmph(
     storm: StormCell,
     lifecycle: StormLifecycleConfig,
     render_config: StormRenderConfig,
-) -> tuple[FloatArray, FloatArray]:
+) -> tuple[FloatArray, BoolArray]:
     """Render one storm as a 2D rainfall-rate field and storm mask.
 
     Returns
@@ -129,11 +129,11 @@ def render_storm_mmph(
     precipitation_mmph
         2D rainfall rate contributed by this single storm in mm/h.
     storm_mask
-        2D float mask (0/1) marking cells significantly affected by the storm.
+        2D boolean mask (0/1) marking cells significantly affected by the storm.
     """
     ny, nx = domain.shape
     precipitation_mmph = np.zeros((ny, nx), dtype=float)
-    storm_mask = np.zeros((ny, nx), dtype=float)
+    storm_mask = np.zeros((ny, nx), dtype=bool)
 
     if not storm.is_alive:
         return precipitation_mmph, storm_mask
@@ -181,7 +181,7 @@ def render_storm_mmph(
     local_precipitation_mmph = current_intensity_mmph * np.exp(exponent)
 
     precipitation_mmph[y_start:y_end, x_start:x_end] = local_precipitation_mmph
-    storm_mask[y_start:y_end, x_start:x_end] = (local_precipitation_mmph >= render_config.storm_mask_threshold_mmph).astype(float)
+    storm_mask[y_start:y_end, x_start:x_end] = local_precipitation_mmph >= render_config.storm_mask_threshold_mmph
 
     return precipitation_mmph, storm_mask
 
@@ -191,11 +191,11 @@ def render_storms_mmph(
     storms: list[StormCell],
     lifecycle: StormLifecycleConfig,
     render_config: StormRenderConfig,
-) -> tuple[FloatArray, FloatArray]:
+) -> tuple[FloatArray, BoolArray]:
     """Render all active storms into a total rainfall-rate field and storm mask."""
     ny, nx = domain.shape
     total_precipitation_mmph = np.zeros((ny, nx), dtype=float)
-    total_storm_mask = np.zeros((ny, nx), dtype=float)
+    total_storm_mask = np.zeros((ny, nx), dtype=bool)
 
     for storm in storms:
         storm_precipitation_mmph, storm_mask = render_storm_mmph(
@@ -225,7 +225,7 @@ def render_storms_to_step_fields(
     storms: list[StormCell],
     lifecycle: StormLifecycleConfig,
     render_config: StormRenderConfig,
-) -> tuple[FloatArray, FloatArray]:
+) -> tuple[FloatArray, BoolArray]:
     """Render all storms and return the official step outputs.
 
     Returns
@@ -233,7 +233,7 @@ def render_storms_to_step_fields(
     precipitation_mm_dt
         Total storm precipitation depth for the current simulation step.
     storm_mask
-        Float 2D mask (0/1) of storm-affected cells.
+        Bool 2D mask (0/1) of storm-affected cells.
     """
     precipitation_mmph, storm_mask = render_storms_mmph(
         domain=domain,

@@ -13,9 +13,6 @@ from simulator.core.state import SimulationState
 
 def merge_module_outputs(
     *,
-    previous_state: SimulationState
-    | None,  # TODO usar previous_state para preservar o propagar variables persistentes cuando algún módulo
-    # no produzca todas sus salidas.
     step: int,
     timestamp: datetime,
     meteo_output: MeteoOutput,
@@ -27,8 +24,6 @@ def merge_module_outputs(
 
     Parameters
     ----------
-    previous_state
-        Previous simulation state. Included for future transition logic.
     step
         Current simulation step index.
     timestamp

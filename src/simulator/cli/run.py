@@ -272,7 +272,7 @@ def _save_quicklook_plots(
 
     precipitation = np.asarray(ds["precipitation"].values, dtype=float)
     background_precipitation = np.asarray(ds["background_precipitation"].values, dtype=float)
-    storm_mask = np.asarray(ds["storm_mask"].values, dtype=float)
+    storm_mask = np.asarray(ds["storm_mask"].values, dtype=bool)
 
     pet = np.asarray(ds["pet"].values, dtype=float)
     aet = np.asarray(ds["aet"].values, dtype=float)
@@ -608,8 +608,6 @@ def main() -> None:
     summary_rows: list[dict[str, object]] = []
     observation_rows: list[dict[str, object]] = []
 
-    previous_state = None
-
     print("Synthetic Basin Simulator")
     print(f"Configuration path: {loaded.config_path}")
     print(f"Run name: {loaded.run_name}")
@@ -653,7 +651,6 @@ def main() -> None:
             timestamp=timestamp,
             precipitation=meteo_output.precipitation,
             pet=energy_output.pet,
-            soil_moisture_prev=hydro_model.latest_state.soil_moisture_mm,
         )
         hydro_output = hydro_model.step(hydro_input)
 
@@ -697,7 +694,6 @@ def main() -> None:
         assert observation_diagnostics is not None
 
         state = merge_module_outputs(
-            previous_state=previous_state,
             step=step,
             timestamp=timestamp,
             meteo_output=meteo_output,
@@ -705,8 +701,6 @@ def main() -> None:
             hydro_output=hydro_output,
             routing_output=routing_output,
         )
-
-        previous_state = state
 
         truth_ds = write_state_to_dataset(
             truth_ds,

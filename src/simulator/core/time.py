@@ -76,22 +76,6 @@ class TimeDefinition:
                 seasons.append("Fall")
         return np.array(seasons)
 
-    # TODO reemplazar los factores fijos de apply_seasonality por parámetros de configuración o escenario.
-    def apply_seasonality(self, values: np.ndarray) -> np.ndarray:
-        """Apply seasonality adjustments to a values array based on the season."""
-        seasonality_factors = {
-            "Winter": 1.2,  # For example, winter might have 20% higher precipitation
-            "Spring": 1.0,
-            "Summer": 0.8,
-            "Fall": 1.0,
-        }
-
-        adjusted_values = np.copy(values)
-        for i, season in enumerate(self.seasons):
-            adjusted_values[i] *= seasonality_factors.get(season, 1.0)
-
-        return adjusted_values
-
     @property
     def total_duration_seconds(self) -> int:
         """Return total simulated duration in seconds."""

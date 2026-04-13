@@ -187,21 +187,14 @@ class HydroModel:
 
         _validate_spatial_float_array("hydro_input.precipitation", hydro_input.precipitation)
         _validate_spatial_float_array("hydro_input.pet", hydro_input.pet)
-        _validate_spatial_float_array("hydro_input.soil_moisture_prev", hydro_input.soil_moisture_prev)
 
         if hydro_input.precipitation.shape != self._shape:
             raise ValueError(f"'hydro_input.precipitation' must have shape {self._shape}, got {hydro_input.precipitation.shape}")
         if hydro_input.pet.shape != self._shape:
             raise ValueError(f"'hydro_input.pet' must have shape {self._shape}, got {hydro_input.pet.shape}")
-        if hydro_input.soil_moisture_prev.shape != self._shape:
-            raise ValueError(
-                f"'hydro_input.soil_moisture_prev' must have shape {self._shape}, got {hydro_input.soil_moisture_prev.shape}"
-            )
 
-        # TODO(next): detect desynchronization between hydro_input.soil_moisture_prev
-        # and self._latest_state.soil_moisture_mm to avoid silent state mismatches.
         soil = update_soil_bucket(
-            soil_moisture_prev_mm=hydro_input.soil_moisture_prev,
+            soil_moisture_prev_mm=self._latest_state.soil_moisture_mm,
             precipitation_mm_dt=hydro_input.precipitation,
             pet_mm_dt=hydro_input.pet,
             config=self.config.soil,

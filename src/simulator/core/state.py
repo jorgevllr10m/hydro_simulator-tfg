@@ -31,7 +31,7 @@ class SimulationState:
     outlet_discharge: float
 
     background_precipitation: FloatArray | None = None
-    storm_mask: FloatArray | None = None
+    storm_mask: BoolArray | None = None
 
     aet: FloatArray | None = None
     shortwave_radiation: FloatArray | None = None
@@ -67,7 +67,7 @@ class SimulationState:
             self._validate_spatial_field("background_precipitation", self.background_precipitation)
 
         if self.storm_mask is not None:
-            self._validate_spatial_field("storm_mask", self.storm_mask)
+            self._validate_spatial_bool_field("storm_mask", self.storm_mask)
 
         if self.aet is not None:
             self._validate_spatial_field("aet", self.aet)
@@ -160,6 +160,21 @@ class SimulationState:
         cls._validate_array(name, value)
         if value.ndim != 1:
             raise ValueError(f"'{name}' must be a 1D array, got ndim={value.ndim}")
+
+    @staticmethod
+    def _validate_bool_array(name: str, value: BoolArray) -> None:
+        """Validate that a value is a NumPy boolean array."""
+        if not isinstance(value, np.ndarray):
+            raise TypeError(f"'{name}' must be a numpy.ndarray, got {type(value).__name__}")
+        if value.dtype != np.bool_:
+            raise TypeError(f"'{name}' must have dtype bool, got {value.dtype}")
+
+    @classmethod
+    def _validate_spatial_bool_field(cls, name: str, value: BoolArray) -> None:
+        """Validate a 2D boolean spatial field."""
+        cls._validate_bool_array(name, value)
+        if value.ndim != 2:
+            raise ValueError(f"'{name}' must be a 2D boolean array with shape (ny, nx), got ndim={value.ndim}")
 
     @property
     def spatial_shape(self) -> tuple[int, int]:
