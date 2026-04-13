@@ -1,2 +1,146 @@
-# hydro_simulator-tfg
-Design and implementation of a spatiotemporal hydrometeorological simulator for the validation of runoff models in regulated basins
+# Hydro Simulator TFG
+
+Spatiotemporal hydrometeorological simulator for generating synthetic truth and synthetic observations over a regulated basin.
+
+## What this repository does
+
+This project simulates a complete hourly hydrometeorological pipeline over a synthetic 2D basin:
+
+1. **Meteorology**
+   - A latent weather environment evolves through discrete regimes.
+   - Storm cells are born, advected, rendered to raster precipitation fields, and combined with a correlated background precipitation field.
+   - A spatial air-temperature field is generated for every step.
+
+2. **Energy balance**
+   - Solar geometry is computed from timestamp and synthetic latitude.
+   - Shortwave radiation and net radiation are estimated.
+   - Potential evapotranspiration (PET) is computed with a simplified Priestley–Taylor formulation.
+
+3. **Hydrology**
+   - Each cell runs a soil bucket model.
+   - Precipitation is partitioned into infiltration, surface runoff, subsurface runoff, and actual evapotranspiration (AET).
+
+4. **Routing and reservoirs**
+   - Runoff is converted to discharge and propagated through a simplified drainage network.
+   - Reservoirs store inflow, evaporate water, release flow according to simple operating rules, and spill when they exceed capacity.
+
+5. **Observation layer**
+   - Synthetic sensors sample truth fields.
+   - Observations may include noise, missing values, and detection-threshold censoring.
+
+6. **Outputs and validation**
+   - Full truth and observation datasets are saved.
+   - Step summaries, per-sensor observation tables, quick-look plots, and validation CSV files are generated.
+
+The goal is not to reproduce a real basin exactly, but to create **controlled, explainable, and reproducible synthetic datasets** for experimentation, testing, and validation.
+
+## Repository structure
+
+```text
+configs/
+  config.yaml                # master run configuration
+  domain/                    # domain presets (grid, reservoirs, sensors)
+  scenarios/                 # scenario overrides
+
+src/simulator/
+  cli/                       # run, plot, validate commands
+  common/                    # common auxiliary functions
+  config/                    # YAML loading and schema validation
+  core/                      # shared types, contracts, state, datasets, engine
+  meteo/                     # latent environment + storm-based rainfall
+  energy/                    # solar geometry, radiation, PET
+  hydro/                     # soil bucket + runoff partition
+  routing/                   # drainage network, channel routing, reservoirs
+  obs/                       # synthetic observation operator
+
+outputs/
+  runs/<run_name>/           # generated datasets, CSVs, plots, validation
+```
+
+## Main commands
+
+Install the project in editable mode:
+
+```bash
+pip install -e .
+```
+
+Intall project with dev dependencies
+```bash
+pip install -e .[dev]
+```
+
+Run one simulation:
+
+```bash
+hydro-sim --config configs/config.yaml
+```
+
+Generate figures from an existing run:
+
+```bash
+hydro-sim-plot --run-dir outputs/runs/base_run
+```
+
+Generate validation CSVs from an existing run:
+
+```bash
+hydro-sim-validate --run-dir outputs/runs/base_run
+```
+
+## Configuration overview
+
+The simulator uses three configuration layers:
+
+- **Master config**: selects run name, simulation window, domain preset, and scenario.
+- **Domain preset**: defines the grid, reservoirs, and sensors.
+- **Scenario file**: overrides selected module parameters for meteorology, energy, hydrology, routing, and observations.
+
+See:
+- [`docs/architecture/configuration.md`](docs/architecture/configuration.md)
+- [`docs/usage/cli.md`](docs/usage/cli.md)
+
+## Documentation map
+
+Start here:
+
+- [`docs/index.md`](docs/index.md)
+- [`docs/architecture/overview.md`](docs/architecture/overview.md)
+- [`docs/methodology/meteorology.md`](docs/methodology/meteorology.md)
+- [`docs/methodology/energy.md`](docs/methodology/energy.md)
+- [`docs/methodology/hydrology.md`](docs/methodology/hydrology.md)
+- [`docs/methodology/routing-and-reservoirs.md`](docs/methodology/routing-and-reservoirs.md)
+- [`docs/methodology/observation-layer.md`](docs/methodology/observation-layer.md)
+- [`docs/usage/outputs.md`](docs/usage/outputs.md)
+- [`docs/validation/validation-workflow.md`](docs/validation/validation-workflow.md)
+
+## Current scope and assumptions
+
+This repository currently implements an MVP-style simulator with the following design choices:
+
+- the basin mask is fully active over the selected rectangular grid
+- the drainage network is synthetic and deterministic
+- the outlet is chosen automatically on the basin boundary
+- the meteorology is stochastic but reproducible through seeds
+- reservoir parameters are shared at model-config level, while capacity and initial storage are domain-specific
+- observations are synthetic products derived from the simulated truth
+
+## Development notes
+
+Development dependencies are defined in `pyproject.toml`. The repository uses:
+
+- `pytest`
+- `ruff`
+- `pre-commit`
+
+You can enable hooks with:
+
+```bash
+pre-commit install
+```
+
+Then run checks manually with:
+
+```bash
+pre-commit run --all-files
+```
