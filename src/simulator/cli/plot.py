@@ -76,15 +76,35 @@ def _read_summary_rows(path: Path) -> list[dict[str, object]]:
             {
                 "step": _parse_csv_int(row["step"]),
                 "timestamp": row["timestamp"].strip(),
+                "regime": row["regime"].strip(),
+                "new_storms": _parse_csv_int(row["new_storms"]),
+                "tracked_storms": _parse_csv_int(row["tracked_storms"]),
                 "precipitation_sum_mm_dt": _parse_csv_float(row["precipitation_sum_mm_dt"]),
                 "precipitation_max_mm_dt": _parse_csv_float(row["precipitation_max_mm_dt"]),
+                "background_precipitation_sum_mm_dt": _parse_csv_float(row["background_precipitation_sum_mm_dt"]),
+                "background_precipitation_max_mm_dt": _parse_csv_float(row["background_precipitation_max_mm_dt"]),
+                "background_fraction_of_total": _parse_csv_float(row["background_fraction_of_total"]),
+                "background_activity_factor": _parse_csv_float(row["background_activity_factor"]),
+                "precipitation_spell_index": _parse_csv_float(row["precipitation_spell_index"]),
+                "band_reorganization_applied": _parse_csv_int(row["band_reorganization_applied"]),
+                "band_births_count": _parse_csv_int(row["band_births_count"]),
+                "band_probability": _parse_csv_float(row["band_probability"]),
+                "storm_mask_active_cells": _parse_csv_int(row["storm_mask_active_cells"]),
+                "air_temperature_mean_c": _parse_csv_float(row["air_temperature_mean_c"]),
                 "pet_mean_mm_dt": _parse_csv_float(row["pet_mean_mm_dt"]),
+                "shortwave_radiation_mean_w_m2": _parse_csv_float(row["shortwave_radiation_mean_w_m2"]),
+                "net_radiation_mean_mj_m2_dt": _parse_csv_float(row["net_radiation_mean_mj_m2_dt"]),
                 "aet_mean_mm_dt": _parse_csv_float(row["aet_mean_mm_dt"]),
                 "soil_moisture_mean_mm": _parse_csv_float(row["soil_moisture_mean_mm"]),
+                "infiltration_sum_mm_dt": _parse_csv_float(row["infiltration_sum_mm_dt"]),
                 "surface_runoff_sum_mm_dt": _parse_csv_float(row["surface_runoff_sum_mm_dt"]),
                 "subsurface_runoff_sum_mm_dt": _parse_csv_float(row["subsurface_runoff_sum_mm_dt"]),
                 "channel_flow_mean_m3s": _parse_csv_float(row["channel_flow_mean_m3s"]),
+                "channel_flow_max_m3s": _parse_csv_float(row["channel_flow_max_m3s"]),
                 "outlet_discharge_m3s": _parse_csv_float(row["outlet_discharge_m3s"]),
+                "reservoir_inflow_sum_m3s": _parse_csv_float(row["reservoir_inflow_sum_m3s"]),
+                "reservoir_release_sum_m3s": _parse_csv_float(row["reservoir_release_sum_m3s"]),
+                "reservoir_spill_sum_m3s": _parse_csv_float(row["reservoir_spill_sum_m3s"]),
                 "reservoir_storage_sum_m3": _parse_csv_float(row["reservoir_storage_sum_m3"]),
                 "obs_available_count": _parse_csv_int(row["obs_available_count"]),
                 "obs_missing_count": _parse_csv_int(row["obs_missing_count"]),
@@ -230,21 +250,41 @@ def _generate_field_plots(
     fields_dir.mkdir(parents=True, exist_ok=True)
 
     precipitation = np.asarray(truth_ds["precipitation"].values, dtype=float)
+    background_precipitation = np.asarray(truth_ds["background_precipitation"].values, dtype=float)
+
     pet = np.asarray(truth_ds["pet"].values, dtype=float)
     aet = np.asarray(truth_ds["aet"].values, dtype=float)
-    surface_runoff = np.asarray(truth_ds["surface_runoff"].values, dtype=float)
+    shortwave_radiation = np.asarray(truth_ds["shortwave_radiation"].values, dtype=float)
+    net_radiation = np.asarray(truth_ds["net_radiation"].values, dtype=float)
+
     soil_moisture = np.asarray(truth_ds["soil_moisture"].values, dtype=float)
+    infiltration = np.asarray(truth_ds["infiltration"].values, dtype=float)
+    surface_runoff = np.asarray(truth_ds["surface_runoff"].values, dtype=float)
+    subsurface_runoff = np.asarray(truth_ds["subsurface_runoff"].values, dtype=float)
 
     accumulated_precipitation = np.nansum(precipitation, axis=0)
+    accumulated_background_precipitation = np.nansum(background_precipitation, axis=0)
     accumulated_pet = np.nansum(pet, axis=0)
     accumulated_aet = np.nansum(aet, axis=0)
+    accumulated_infiltration = np.nansum(infiltration, axis=0)
     accumulated_surface_runoff = np.nansum(surface_runoff, axis=0)
+    accumulated_subsurface_runoff = np.nansum(subsurface_runoff, axis=0)
+
+    mean_shortwave_radiation = np.nanmean(shortwave_radiation, axis=0)
+    mean_net_radiation = np.nanmean(net_radiation, axis=0)
+    mean_soil_moisture = np.nanmean(soil_moisture, axis=0)
     final_soil_moisture = soil_moisture[-1] if soil_moisture.shape[0] > 0 else np.zeros(soil_moisture.shape[1:], dtype=float)
 
     _save_field_plot(
         accumulated_precipitation,
         title="Accumulated precipitation",
         output_path=fields_dir / "accumulated_precipitation.png",
+        colorbar_label="mm",
+    )
+    _save_field_plot(
+        accumulated_background_precipitation,
+        title="Accumulated background precipitation",
+        output_path=fields_dir / "accumulated_background_precipitation.png",
         colorbar_label="mm",
     )
     _save_field_plot(
@@ -260,9 +300,27 @@ def _generate_field_plots(
         colorbar_label="mm",
     )
     _save_field_plot(
+        accumulated_infiltration,
+        title="Accumulated infiltration",
+        output_path=fields_dir / "accumulated_infiltration.png",
+        colorbar_label="mm",
+    )
+    _save_field_plot(
         accumulated_surface_runoff,
         title="Accumulated surface runoff",
         output_path=fields_dir / "accumulated_surface_runoff.png",
+        colorbar_label="mm",
+    )
+    _save_field_plot(
+        accumulated_subsurface_runoff,
+        title="Accumulated subsurface runoff",
+        output_path=fields_dir / "accumulated_subsurface_runoff.png",
+        colorbar_label="mm",
+    )
+    _save_field_plot(
+        mean_soil_moisture,
+        title="Mean soil moisture",
+        output_path=fields_dir / "mean_soil_moisture.png",
         colorbar_label="mm",
     )
     _save_field_plot(
@@ -271,6 +329,99 @@ def _generate_field_plots(
         output_path=fields_dir / "final_soil_moisture.png",
         colorbar_label="mm",
     )
+    _save_field_plot(
+        mean_shortwave_radiation,
+        title="Mean shortwave radiation",
+        output_path=fields_dir / "mean_shortwave_radiation.png",
+        colorbar_label="W/m2",
+    )
+    _save_field_plot(
+        mean_net_radiation,
+        title="Mean net radiation",
+        output_path=fields_dir / "mean_net_radiation.png",
+        colorbar_label="MJ/m2/dt",
+    )
+
+
+def _generate_peak_step_plots(
+    *,
+    truth_ds: xr.Dataset,
+    summary_rows: list[dict[str, object]],
+    output_dir: Path,
+) -> None:
+    """Generate peak-step and special-step spatial plots."""
+    fields_dir = output_dir / "fields"
+    fields_dir.mkdir(parents=True, exist_ok=True)
+
+    precipitation = np.asarray(truth_ds["precipitation"].values, dtype=float)
+    storm_mask = np.asarray(truth_ds["storm_mask"].values, dtype=bool)
+    infiltration = np.asarray(truth_ds["infiltration"].values, dtype=float)
+    surface_runoff = np.asarray(truth_ds["surface_runoff"].values, dtype=float)
+    soil_moisture = np.asarray(truth_ds["soil_moisture"].values, dtype=float)
+    channel_flow = np.asarray(truth_ds["channel_flow"].values, dtype=float)
+
+    if precipitation.shape[0] > 0 and np.isfinite(precipitation).any():
+        peak_precip_step = int(np.nanargmax(np.nanmax(precipitation, axis=(1, 2))))
+
+        _save_field_plot(
+            precipitation[peak_precip_step],
+            title=f"Precipitation at peak step {peak_precip_step}",
+            output_path=fields_dir / "step_peak_precipitation.png",
+            colorbar_label="mm/dt",
+        )
+        _save_field_plot(
+            storm_mask[peak_precip_step].astype(float),
+            title=f"Storm mask at peak precipitation step {peak_precip_step}",
+            output_path=fields_dir / "step_peak_storm_mask.png",
+            colorbar_label="1",
+        )
+
+    if surface_runoff.shape[0] > 0 and np.isfinite(surface_runoff).any():
+        peak_runoff_step = int(np.nanargmax(np.nanmax(surface_runoff, axis=(1, 2))))
+
+        _save_field_plot(
+            surface_runoff[peak_runoff_step],
+            title=f"Surface runoff at peak step {peak_runoff_step}",
+            output_path=fields_dir / "step_peak_surface_runoff.png",
+            colorbar_label="mm/dt",
+        )
+        _save_field_plot(
+            infiltration[peak_runoff_step],
+            title=f"Infiltration at peak runoff step {peak_runoff_step}",
+            output_path=fields_dir / "step_peak_infiltration.png",
+            colorbar_label="mm/dt",
+        )
+        _save_field_plot(
+            soil_moisture[peak_runoff_step],
+            title=f"Soil moisture at peak runoff step {peak_runoff_step}",
+            output_path=fields_dir / "step_peak_runoff_soil_moisture.png",
+            colorbar_label="mm",
+        )
+        _save_field_plot(
+            channel_flow[peak_runoff_step],
+            title=f"Channel flow at peak runoff step {peak_runoff_step}",
+            output_path=fields_dir / "step_peak_channel_flow.png",
+            colorbar_label="m3/s",
+        )
+
+    if summary_rows and "band_reorganization_applied" in summary_rows[0]:
+        band_steps = [int(row["step"]) for row in summary_rows if int(row["band_reorganization_applied"]) == 1]
+
+        if band_steps:
+            first_band_step = band_steps[0]
+
+            _save_field_plot(
+                precipitation[first_band_step],
+                title=f"Precipitation at first band step {first_band_step}",
+                output_path=fields_dir / "step_first_band_precipitation.png",
+                colorbar_label="mm/dt",
+            )
+            _save_field_plot(
+                storm_mask[first_band_step].astype(float),
+                title=f"Storm mask at first band step {first_band_step}",
+                output_path=fields_dir / "step_first_band_storm_mask.png",
+                colorbar_label="1",
+            )
 
 
 def _generate_summary_plots(
@@ -287,48 +438,115 @@ def _generate_summary_plots(
 
     step_index = np.asarray([int(row["step"]) for row in summary_rows], dtype=int)
 
-    def _series(key: str) -> np.ndarray:
-        return np.asarray([float(row[key]) for row in summary_rows], dtype=float)
+    def _plot_row_series(
+        key: str,
+        *,
+        title: str,
+        ylabel: str,
+        filename: str,
+    ) -> None:
+        if key not in summary_rows[0]:
+            return
 
-    _save_line_plot(
-        step_index,
-        _series("outlet_discharge_m3s"),
-        title="Outlet discharge over time",
-        xlabel="step",
-        ylabel="m3/s",
-        output_path=summary_dir / "outlet_discharge_timeseries.png",
-    )
-    _save_line_plot(
-        step_index,
-        _series("channel_flow_mean_m3s"),
-        title="Mean channel flow over time",
-        xlabel="step",
-        ylabel="m3/s",
-        output_path=summary_dir / "channel_flow_mean_timeseries.png",
-    )
-    _save_line_plot(
-        step_index,
-        _series("reservoir_storage_sum_m3"),
-        title="Total reservoir storage over time",
-        xlabel="step",
-        ylabel="m3",
-        output_path=summary_dir / "reservoir_storage_total_timeseries.png",
-    )
-    _save_line_plot(
-        step_index,
-        _series("precipitation_max_mm_dt"),
+        values = np.asarray([float(row[key]) for row in summary_rows], dtype=float)
+        _save_line_plot(
+            step_index,
+            values,
+            title=title,
+            xlabel="step",
+            ylabel=ylabel,
+            output_path=summary_dir / filename,
+        )
+
+    _plot_row_series(
+        "precipitation_max_mm_dt",
         title="Maximum precipitation per step",
-        xlabel="step",
         ylabel="mm/dt",
-        output_path=summary_dir / "precipitation_max_timeseries.png",
+        filename="precipitation_max_timeseries.png",
     )
-    _save_line_plot(
-        step_index,
-        _series("obs_available_count"),
+    _plot_row_series(
+        "background_fraction_of_total",
+        title="Background fraction of total precipitation",
+        ylabel="fraction",
+        filename="background_fraction_timeseries.png",
+    )
+    _plot_row_series(
+        "band_reorganization_applied",
+        title="Band reorganization applied",
+        ylabel="0/1",
+        filename="band_reorganization_timeseries.png",
+    )
+    _plot_row_series(
+        "pet_mean_mm_dt",
+        title="Mean PET per step",
+        ylabel="mm/dt",
+        filename="pet_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "aet_mean_mm_dt",
+        title="Mean AET per step",
+        ylabel="mm/dt",
+        filename="aet_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "soil_moisture_mean_mm",
+        title="Mean soil moisture per step",
+        ylabel="mm",
+        filename="soil_moisture_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "infiltration_sum_mm_dt",
+        title="Total infiltration per step",
+        ylabel="mm/dt",
+        filename="infiltration_sum_timeseries.png",
+    )
+    _plot_row_series(
+        "surface_runoff_sum_mm_dt",
+        title="Total surface runoff per step",
+        ylabel="mm/dt",
+        filename="surface_runoff_sum_timeseries.png",
+    )
+    _plot_row_series(
+        "subsurface_runoff_sum_mm_dt",
+        title="Total subsurface runoff per step",
+        ylabel="mm/dt",
+        filename="subsurface_runoff_sum_timeseries.png",
+    )
+    _plot_row_series(
+        "shortwave_radiation_mean_w_m2",
+        title="Mean shortwave radiation per step",
+        ylabel="W/m2",
+        filename="shortwave_radiation_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "net_radiation_mean_mj_m2_dt",
+        title="Mean net radiation per step",
+        ylabel="MJ/m2/dt",
+        filename="net_radiation_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "channel_flow_mean_m3s",
+        title="Mean channel flow per step",
+        ylabel="m3/s",
+        filename="channel_flow_mean_timeseries.png",
+    )
+    _plot_row_series(
+        "outlet_discharge_m3s",
+        title="Outlet discharge per step",
+        ylabel="m3/s",
+        filename="outlet_discharge_timeseries.png",
+    )
+    _plot_row_series(
+        "reservoir_storage_sum_m3",
+        title="Total reservoir storage over time",
+        ylabel="m3",
+        filename="reservoir_storage_total_timeseries.png",
+    )
+    _plot_row_series(
+        "obs_available_count",
         title="Available observations per step",
-        xlabel="step",
         ylabel="count",
-        output_path=summary_dir / "observations_available_timeseries.png",
+        filename="observations_available_timeseries.png",
     )
 
 
@@ -371,6 +589,11 @@ def main() -> None:
 
     _generate_field_plots(
         truth_ds=truth_ds,
+        output_dir=output_dir,
+    )
+    _generate_peak_step_plots(
+        truth_ds=truth_ds,
+        summary_rows=summary_rows,
         output_dir=output_dir,
     )
     _generate_summary_plots(
