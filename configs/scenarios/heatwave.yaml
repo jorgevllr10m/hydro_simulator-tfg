@@ -1,0 +1,27 @@
+meteo:
+  latent_environment:
+    initial_regime: stable_dry
+    thermal_scenario: warm
+    moisture_scenario: dry
+    regime_persistence: 0.90
+    spell_memory: 0.92
+
+  storm_birth:
+    expected_births_per_step: 0.45
+
+  background:
+    enabled: true
+    max_intensity_mm_dt: 0.6
+
+energy:
+  pet:
+    pet_multiplier: 1.25
+
+hydro:
+  soil:
+    initial_relative: 0.35
+
+routing:
+  reservoir_rules:
+    min_release_m3s: 0.05
+    target_release_m3s: 0.60

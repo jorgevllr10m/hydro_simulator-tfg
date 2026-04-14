@@ -82,6 +82,90 @@ def _write_summary_csv(
         writer.writerows(formatted_rows)
 
 
+SUMMARY_COLUMN_NAMES_ES: dict[str, str] = {
+    "step": "paso",
+    "timestamp": "marca_temporal",
+    "regime": "regimen",
+    "new_storms": "nuevas_tormentas",
+    "tracked_storms": "tormentas_activas",
+    "precipitation_sum_mm_dt": "precipitacion_total_mm_dt",
+    "precipitation_max_mm_dt": "precipitacion_maxima_mm_dt",
+    "background_precipitation_sum_mm_dt": "precipitacion_fondo_total_mm_dt",
+    "background_precipitation_max_mm_dt": "precipitacion_fondo_maxima_mm_dt",
+    "background_fraction_of_total": "fraccion_precipitacion_fondo_sobre_total",
+    "background_activity_factor": "factor_actividad_fondo",
+    "precipitation_spell_index": "indice_racha_humeda",
+    "band_reorganization_applied": "reorganizacion_en_banda_aplicada",
+    "band_probability": "probabilidad_banda",
+    "band_births_count": "numero_nacimientos_en_banda",
+    "storm_mask_active_cells": "celdas_activas_mascara_tormenta",
+    "air_temperature_mean_c": "temperatura_aire_media_c",
+    "pet_mean_mm_dt": "pet_media_mm_dt",
+    "shortwave_radiation_mean_w_m2": "radiacion_onda_corta_media_w_m2",
+    "net_radiation_mean_mj_m2_dt": "radiacion_neta_media_mj_m2_dt",
+    "aet_mean_mm_dt": "aet_media_mm_dt",
+    "soil_moisture_mean_mm": "humedad_suelo_media_mm",
+    "infiltration_sum_mm_dt": "infiltracion_total_mm_dt",
+    "surface_runoff_sum_mm_dt": "escorrentia_superficial_total_mm_dt",
+    "subsurface_runoff_sum_mm_dt": "escorrentia_subsuperficial_total_mm_dt",
+    "channel_flow_mean_m3s": "caudal_cauce_medio_m3s",
+    "channel_flow_max_m3s": "caudal_cauce_maximo_m3s",
+    "outlet_discharge_m3s": "caudal_salida_m3s",
+    "reservoir_inflow_sum_m3s": "caudal_entrada_total_embalses_m3s",
+    "reservoir_release_sum_m3s": "desembalse_total_embalses_m3s",
+    "reservoir_spill_sum_m3s": "vertido_total_embalses_m3s",
+    "reservoir_storage_sum_m3": "almacenamiento_total_embalses_m3",
+    "obs_available_count": "numero_observaciones_disponibles",
+    "obs_missing_count": "numero_observaciones_faltantes",
+    "obs_censored_count": "numero_observaciones_censuradas",
+}
+
+OBSERVATION_COLUMN_NAMES_ES: dict[str, str] = {
+    "step": "paso",
+    "timestamp": "marca_temporal",
+    "sensor_index": "indice_sensor",
+    "sensor_name": "nombre_sensor",
+    "sensor_type": "tipo_sensor",
+    "cell_y": "celda_y",
+    "cell_x": "celda_x",
+    "truth_value": "valor_verdad",
+    "observed_value": "valor_observado",
+    "observation_available": "observacion_disponible",
+    "quality_flag": "flag_calidad",
+    "quality_label": "etiqueta_calidad",
+}
+
+
+def _translate_row_keys(
+    rows: list[dict[str, object]],
+    column_names: dict[str, str],
+) -> list[dict[str, object]]:
+    """Return a copy of rows with translated column names preserving order."""
+    translated_rows: list[dict[str, object]] = []
+
+    for row in rows:
+        translated_row: dict[str, object] = {}
+        for key, value in row.items():
+            translated_row[column_names.get(key, key)] = value
+        translated_rows.append(translated_row)
+
+    return translated_rows
+
+
+def _write_translated_csv(
+    *,
+    rows: list[dict[str, object]],
+    output_path: Path,
+    column_names: dict[str, str],
+) -> None:
+    """Write one CSV with translated human-friendly column names."""
+    translated_rows = _translate_row_keys(rows, column_names)
+    _write_summary_csv(
+        rows=translated_rows,
+        output_path=output_path,
+    )
+
+
 def _quality_flag_label(flag_value: int) -> str:
     """Return a human-readable label for one observation quality flag."""
     try:
@@ -456,10 +540,24 @@ def main() -> None:
         output_path=summary_csv_path,
     )
 
+    summary_csv_es_path = run_output_dir / "simulation_summary_es.csv"
+    _write_translated_csv(
+        rows=summary_rows,
+        output_path=summary_csv_es_path,
+        column_names=SUMMARY_COLUMN_NAMES_ES,
+    )
+
     observation_csv_path = run_output_dir / "simulation_observations.csv"
     _write_summary_csv(
         rows=observation_rows,
         output_path=observation_csv_path,
+    )
+
+    observation_csv_es_path = run_output_dir / "simulation_observations_es.csv"
+    _write_translated_csv(
+        rows=observation_rows,
+        output_path=observation_csv_es_path,
+        column_names=OBSERVATION_COLUMN_NAMES_ES,
     )
 
     print("Run completed successfully.")

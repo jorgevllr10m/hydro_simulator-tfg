@@ -4,8 +4,8 @@ run:
 
 # Simulation parameters
 simulation:
-  start_date: "2026-04-01"
-  end_date: "2026-06-10"
+  start_date: "2026-06-01"
+  end_date: "2026-08-10"
   time_step_hours: 1
 
 # Choose one from /domain
@@ -14,4 +14,4 @@ domain:
 
 # Choose one from /scenarios
 scenario:
-  name: "baseline"
+  name: "heatwave"

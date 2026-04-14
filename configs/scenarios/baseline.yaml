@@ -1,12 +1,57 @@
 meteo:
-    latent_environment:
-        initial_regime: transitional
-        thermal_scenario: normal
-        moisture_scenario: normal
+  latent_environment:
+    initial_regime: transitional
+    thermal_scenario: normal
+    moisture_scenario: normal
+    regime_persistence: 0.85
+    spell_memory: 0.88
 
-    storm_birth:
-        expected_births_per_step: 1.0
-        max_new_storms_per_step: 8
+  storm_birth:
+    expected_births_per_step: 0.85
+    mean_peak_intensity_mmph: 10.5
+    mean_duration_steps: 5
+    band_cluster_probability: 0.25
+
+  background:
+    enabled: true
+    temporal_persistence: 0.85
+    max_intensity_mm_dt: 1.8
+
+energy:
+  pet:
+    pet_multiplier: 1.0
+
+hydro:
+  soil:
+    capacity_mm: 180.0
+    initial_relative: 0.50
+    max_infiltration_mm_dt: 18.0
+    percolation_rate_mm_dt: 2.5
+
+  runoff:
+    subsurface_runoff_fraction: 1.0
 
 routing:
-  channel_time_constant_hours: 1.0
+  enable_reservoirs: true
+  channel:
+    channel_time_constant_hours: 1.0
+  reservoir_rules:
+    min_release_m3s: 0.2
+    target_release_m3s: 1.5
+
+obs:
+  precipitation:
+    enabled: true
+    noise_std_mm_dt: 0.15
+    missing_probability: 0.02
+    detection_threshold_mm_dt: 0.05
+
+  discharge:
+    enabled: true
+    relative_noise_std: 0.08
+    missing_probability: 0.02
+    detection_threshold_m3s: 0.10
+
+  reservoir_storage:
+    enabled: true
+    noise_std_m3: 15000.0
