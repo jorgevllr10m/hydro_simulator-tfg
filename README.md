@@ -65,7 +65,7 @@ Install the project in editable mode:
 pip install -e .
 ```
 
-Intall project with dev dependencies
+Install project with dev dependencies
 ```bash
 pip install -e .[dev]
 ```
