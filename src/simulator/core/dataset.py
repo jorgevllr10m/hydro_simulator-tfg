@@ -437,16 +437,6 @@ def create_empty_observation_dataset(domain: SimulationDomain) -> xr.Dataset:
     return ds
 
 
-def create_empty_dataset(domain: SimulationDomain) -> xr.Dataset:
-    """Backward-compatible alias returning the truth dataset.
-
-    Historically the project used a single dataset function. During phase 8,
-    truth and observation are separated, so this alias is kept to avoid
-    breaking older code while the runner is updated incrementally.
-    """
-    return create_empty_truth_dataset(domain)
-
-
 def write_state_to_dataset(
     ds: xr.Dataset,
     state: SimulationState,
