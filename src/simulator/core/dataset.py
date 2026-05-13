@@ -14,8 +14,6 @@ Y_DIM = "y"
 X_DIM = "x"
 RESERVOIR_DIM = "reservoir"
 SENSOR_DIM = "sensor"
-LINK_DIM = "link"
-STORM_DIM = "storm"
 
 
 @dataclass(frozen=True)
