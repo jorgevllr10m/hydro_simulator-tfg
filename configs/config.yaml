@@ -1,5 +1,5 @@
 run:
-  name: "base_run"
+  name: "wet"
   output_dir: "outputs/runs"
 
 # Simulation parameters
@@ -14,4 +14,4 @@ domain:
 
 # Choose one from /scenarios
 scenario:
-  name: "heatwave"
+  name: "wet"

@@ -1,10 +1,67 @@
 grid:
-  nx: 120
-  ny: 90
+  nx: 160
+  ny: 120
   dx: 1000.0
   dy: 1000.0
   x0: 0.0
   y0: 0.0
 
-reservoirs: []
-sensors: []
+reservoirs:
+  - name: upper_reservoir
+    cell_y: 30
+    cell_x: 40
+    capacity: 12000000.0
+    initial_storage: 7200000.0
+
+  - name: middle_reservoir
+    cell_y: 70
+    cell_x: 100
+    capacity: 20000000.0
+    initial_storage: 10000000.0
+
+  - name: lower_reservoir
+    cell_y: 95
+    cell_x: 130
+    capacity: 16000000.0
+    initial_storage: 9600000.0
+
+sensors:
+  - name: rain_gauge_upper
+    sensor_type: precipitation
+    cell_y: 20
+    cell_x: 30
+
+  - name: rain_gauge_middle
+    sensor_type: precipitation
+    cell_y: 60
+    cell_x: 80
+
+  - name: rain_gauge_lower
+    sensor_type: precipitation
+    cell_y: 95
+    cell_x: 125
+
+  - name: flow_sensor_middle
+    sensor_type: discharge
+    cell_y: 80
+    cell_x: 120
+
+  - name: flow_sensor_outlet
+    sensor_type: discharge
+    cell_y: 119
+    cell_x: 159
+
+  - name: storage_sensor_upper_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 30
+    cell_x: 40
+
+  - name: storage_sensor_middle_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 70
+    cell_x: 100
+
+  - name: storage_sensor_lower_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 95
+    cell_x: 130

@@ -1,0 +1,62 @@
+meteo:
+  latent_environment:
+    random_seed: 1501
+    initial_regime: frontal_persistent
+    thermal_scenario: cold
+    moisture_scenario: wet
+    regime_persistence: 0.86
+    spell_memory: 0.86
+
+  storm_birth:
+    expected_births_per_step: 0.40
+    mean_peak_intensity_mmph: 6.5
+    mean_duration_steps: 5
+    band_cluster_probability: 0.40
+
+  background:
+    enabled: true
+    random_seed: 2501
+    temporal_persistence: 0.88
+    max_intensity_mm_dt: 3.2
+
+energy:
+  latitude_deg: 40.0
+  pet:
+    pet_multiplier: 0.70
+
+hydro:
+  soil:
+    capacity_mm: 180.0
+    initial_relative: 0.60
+    max_infiltration_mm_dt: 18.0
+    percolation_rate_mm_dt: 2.5
+
+  runoff:
+    subsurface_runoff_fraction: 1.0
+
+routing:
+  enable_reservoirs: true
+  channel:
+    channel_time_constant_hours: 1.0
+  reservoir_rules:
+    min_release_m3s: 0.2
+    target_release_m3s: 1.5
+
+obs:
+  random_seed: 3501
+
+  precipitation:
+    enabled: true
+    noise_std_mm_dt: 0.15
+    missing_probability: 0.02
+    detection_threshold_mm_dt: 0.05
+
+  discharge:
+    enabled: true
+    relative_noise_std: 0.08
+    missing_probability: 0.02
+    detection_threshold_m3s: 0.10
+
+  reservoir_storage:
+    enabled: true
+    noise_std_m3: 15000.0

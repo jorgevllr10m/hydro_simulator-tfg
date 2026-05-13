@@ -6,5 +6,25 @@ grid:
   x0: 0.0
   y0: 0.0
 
-reservoirs: []
-sensors: []
+reservoirs:
+  - name: upper_reservoir
+    cell_y: 8
+    cell_x: 10
+    capacity: 750000.0
+    initial_storage: 450000.0
+
+sensors:
+  - name: rain_gauge_upper
+    sensor_type: precipitation
+    cell_y: 5
+    cell_x: 8
+
+  - name: flow_sensor_outlet
+    sensor_type: discharge
+    cell_y: 29
+    cell_x: 39
+
+  - name: storage_sensor_upper_reservoir
+    sensor_type: reservoir_storage
+    cell_y: 8
+    cell_x: 10
