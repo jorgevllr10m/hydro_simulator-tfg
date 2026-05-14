@@ -8,7 +8,6 @@ from simulator.core.contracts import MeteoInput, MeteoOutput
 from simulator.meteo.background_field import (
     BackgroundFieldConfig,
     BackgroundFieldModel,
-    build_air_temperature_field,
 )
 from simulator.meteo.latent_state import (
     LatentEnvironmentConfig,
@@ -20,6 +19,10 @@ from simulator.meteo.lifecycle import StormLifecycleConfig
 from simulator.meteo.render import StormRenderConfig, render_storms_to_step_fields
 from simulator.meteo.storm_birth import StormBirthConfig, spawn_storms
 from simulator.meteo.storm_objects import StormCell
+from simulator.meteo.temperature_field import (
+    TemperatureFieldConfig,
+    TemperatureFieldModel,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,7 @@ class StormPrecipitationConfig:
     lifecycle: StormLifecycleConfig = field(default_factory=StormLifecycleConfig)
     render: StormRenderConfig = field(default_factory=StormRenderConfig)
     background: BackgroundFieldConfig = field(default_factory=BackgroundFieldConfig)
+    temperature: TemperatureFieldConfig = field(default_factory=TemperatureFieldConfig)
 
     random_seed: int = 4321
 
@@ -49,6 +53,9 @@ class StormPrecipitationConfig:
 
         if not isinstance(self.background, BackgroundFieldConfig):
             raise TypeError(f"'background' must be a BackgroundFieldConfig, got {type(self.background).__name__}")
+
+        if not isinstance(self.temperature, TemperatureFieldConfig):
+            raise TypeError(f"'temperature' must be a TemperatureFieldConfig, got {type(self.temperature).__name__}")
 
         if not isinstance(self.random_seed, int):
             raise TypeError(f"'random_seed' must be an int, got {type(self.random_seed).__name__}")
@@ -92,6 +99,7 @@ class StormPrecipitationModel:
         self._storm_rng = np.random.default_rng(config.random_seed)
         self._latent_model = LatentEnvironmentModel(config.latent_environment)
         self._background_model = BackgroundFieldModel(config.background)
+        self._temperature_model = TemperatureFieldModel(config.temperature)
 
         self._latest_latent_state: LatentEnvironmentState | None = None
         self._active_storms: list[StormCell] = []
@@ -123,6 +131,7 @@ class StormPrecipitationModel:
         self._storm_rng = np.random.default_rng(self.config.random_seed)
         self._latent_model = LatentEnvironmentModel(self.config.latent_environment)
         self._background_model = BackgroundFieldModel(self.config.background)
+        self._temperature_model = TemperatureFieldModel(self.config.temperature)
 
         self._latest_latent_state = None
         self._active_storms = []
@@ -188,9 +197,9 @@ class StormPrecipitationModel:
 
         precipitation = background_precipitation + storm_precipitation_mm_dt
 
-        air_temperature = build_air_temperature_field(
-            meteo_input.domain,
-            latent_state.background_temperature_c,
+        air_temperature = self._temperature_model.step(
+            domain=meteo_input.domain,
+            background_temperature_c=latent_state.background_temperature_c,
         )
 
         meteo_output = MeteoOutput(

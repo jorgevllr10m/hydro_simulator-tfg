@@ -17,6 +17,11 @@ meteo:
     temporal_persistence: 0.85
     max_intensity_mm_dt: 1.8
 
+  temperature:
+    enabled: true
+    random_seed: 4001
+    gradient_amplitude_c: 0.75
+
 energy:
   pet:
     pet_multiplier: 1.0

@@ -233,12 +233,31 @@ class BackgroundFieldOverrideConfig(BaseModel):
     )
 
 
+class TemperatureFieldOverrideConfig(BaseModel):
+    """Optional scenario overrides for the spatial air-temperature field."""
+
+    enabled: bool | None = Field(
+        None,
+        description="Whether spatial temperature anomalies are enabled",
+    )
+    random_seed: int | None = Field(
+        None,
+        description="Random seed for the spatial temperature anomaly field",
+    )
+    gradient_amplitude_c: float | None = Field(
+        None,
+        ge=0.0,
+        description="Amplitude of the dominant spatial temperature gradient [degC]",
+    )
+
+
 class MeteoScenarioConfig(BaseModel):
     """Meteorological overrides contained in a scenario file."""
 
     latent_environment: LatentEnvironmentOverrideConfig = Field(default_factory=LatentEnvironmentOverrideConfig)
     storm_birth: StormBirthOverrideConfig = Field(default_factory=StormBirthOverrideConfig)
     background: BackgroundFieldOverrideConfig = Field(default_factory=BackgroundFieldOverrideConfig)
+    temperature: TemperatureFieldOverrideConfig = Field(default_factory=TemperatureFieldOverrideConfig)
 
 
 # * Energy module

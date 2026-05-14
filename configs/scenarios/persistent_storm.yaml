@@ -18,3 +18,50 @@ meteo:
     random_seed: 2301
     temporal_persistence: 0.92
     max_intensity_mm_dt: 2.2
+
+  temperature:
+    enabled: true
+    random_seed: 4301
+    gradient_amplitude_c: 0.70
+
+energy:
+  latitude_deg: 40.0
+  pet:
+    pet_multiplier: 1.0
+
+hydro:
+  soil:
+    capacity_mm: 180.0
+    initial_relative: 0.70
+    max_infiltration_mm_dt: 15.0
+    percolation_rate_mm_dt: 3.5
+
+  runoff:
+    subsurface_runoff_fraction: 1.0
+
+routing:
+  enable_reservoirs: true
+  channel:
+    channel_time_constant_hours: 0.85
+  reservoir_rules:
+    min_release_m3s: 0.25
+    target_release_m3s: 2.0
+
+obs:
+  random_seed: 3301
+
+  precipitation:
+    enabled: true
+    noise_std_mm_dt: 0.18
+    missing_probability: 0.02
+    detection_threshold_mm_dt: 0.05
+
+  discharge:
+    enabled: true
+    relative_noise_std: 0.09
+    missing_probability: 0.02
+    detection_threshold_m3s: 0.10
+
+  reservoir_storage:
+    enabled: true
+    noise_std_m3: 18000.0

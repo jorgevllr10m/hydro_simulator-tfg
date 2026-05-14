@@ -13,6 +13,11 @@ meteo:
     enabled: true
     max_intensity_mm_dt: 0.6
 
+  temperature:
+    enabled: true
+    random_seed: 4101
+    gradient_amplitude_c: 0.90
+
 energy:
   pet:
     pet_multiplier: 1.25
