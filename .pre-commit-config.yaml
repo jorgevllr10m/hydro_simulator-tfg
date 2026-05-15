@@ -1,12 +1,20 @@
+# List of pre-commit hook repositories to run before each commit.
 repos:
+  # Ruff is used for Python linting and formatting.
+  # It helps detect style issues, unused imports, common bugs and formatting inconsistencies.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.13.0
     hooks:
+      # Runs Ruff's linter to check code quality and style issues.
       - id: ruff-check
+      # Runs Ruff's formatter to automatically format Python code.
       - id: ruff-format
 
+  # Generic pre-commit hooks for common file hygiene checks.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # Ensures files end with a newline.
       - id: end-of-file-fixer
+      # Removes unnecessary trailing spaces at the end of lines.
       - id: trailing-whitespace
