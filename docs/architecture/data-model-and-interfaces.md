@@ -5,6 +5,7 @@
 The simulator distinguishes between static definitions and dynamic state.
 
 ### Grid definition
+
 The grid is regular and rectangular, with:
 
 - `nx`, `ny`
@@ -17,7 +18,14 @@ The canonical array shape is always:
 (ny, nx)
 ```
 
+This means array indexing follows:
+
+```text
+field[cell_y, cell_x]
+```
+
 ### Basin definition
+
 The basin is a boolean mask over the grid:
 
 - `True` means active basin cell
@@ -26,14 +34,18 @@ The basin is a boolean mask over the grid:
 In the current MVP, the loader builds a fully active basin mask.
 
 ### Reservoir definition
+
 Each reservoir stores:
 
 - name
 - grid cell `(cell_y, cell_x)`
-- capacity
-- initial storage
+- capacity in `m3`
+- initial storage in `m3`
+
+Capacity and initial storage are reservoir-specific. Other storage and operating-rule parameters are shared through the routing configuration in the current MVP.
 
 ### Sensor definition
+
 Each sensor stores:
 
 - name
@@ -46,7 +58,10 @@ Supported sensor types are:
 - `discharge`
 - `reservoir_storage`
 
+A `reservoir_storage` sensor must coincide exactly with one reservoir cell.
+
 ### Simulation domain
+
 `SimulationDomain` groups:
 
 - spatial domain
@@ -68,9 +83,12 @@ The internal time model stores:
 It also exposes:
 
 - timestamp array
+- step index array
 - month array
 - season array
 - total duration
+
+The external YAML uses `start_date`, `end_date`, and `time_step_hours`; the loader converts these to the internal representation.
 
 ## Dynamic simulation state
 
@@ -80,7 +98,7 @@ It also exposes:
 - air temperature
 - PET
 - soil moisture
-- runoff
+- surface runoff
 - channel flow
 - outlet discharge
 
@@ -89,10 +107,14 @@ Optional fields include:
 - background precipitation
 - storm mask
 - AET
-- shortwave and net radiation
+- shortwave radiation
+- net radiation
 - infiltration
 - subsurface runoff
-- reservoir inflow, storage, release, and spill
+- reservoir inflow
+- reservoir storage
+- reservoir release
+- reservoir spill
 
 This object is not the internal state of any one module. It is the **integrated physical snapshot** written to the truth dataset.
 
@@ -101,34 +123,49 @@ This object is not the internal state of any one module. It is the **integrated 
 Each module communicates through typed dataclasses.
 
 ### Meteorology
+
 Input:
+
 - domain
 - step
 - timestamp
 - optional previous state
 
 Output:
+
 - precipitation
 - air temperature
 - optional background precipitation
 - optional storm mask
 
 ### Energy
+
 Input:
+
+- domain
+- step
+- timestamp
 - precipitation
 - air temperature
 
 Output:
+
 - PET
 - shortwave radiation
 - net radiation
 
 ### Hydrology
+
 Input:
+
+- domain
+- step
+- timestamp
 - precipitation
 - PET
 
 Output:
+
 - soil moisture
 - infiltration
 - surface runoff
@@ -136,25 +173,48 @@ Output:
 - optional subsurface runoff
 
 ### Routing
+
 Input:
+
+- domain
+- step
+- timestamp
 - surface runoff
 - PET
 - optional subsurface runoff
 
 Output:
-- lateral inflow
-- total cell inflow
-- routed channel flow
+
+- lateral inflow field
+- total cell inflow field
+- routed channel-flow field
 - outlet discharge
-- reservoir diagnostics and state variables
+- reservoir inflow
+- requested reservoir release
+- reservoir storage fraction
+- reservoir surface area
+- reservoir evaporation loss
+- reservoir storage
+- reservoir release
+- reservoir spill
+- reservoir total outflow
+- reservoir operation zones
+
+Only a subset of reservoir diagnostics is currently persisted in the truth dataset.
 
 ### Observation
+
 Input:
+
+- domain
+- step
+- timestamp
 - precipitation
 - channel flow
 - optional reservoir storage
 
 Output:
+
 - observation vectors
 - availability mask
 - quality flags
@@ -164,27 +224,63 @@ Output:
 The project writes two xarray datasets.
 
 ## Truth dataset
+
 Contains simulated physical variables across time, space, and reservoirs.
 
 Main variable groups:
 
-- meteorology
-- energy
-- hydrology
-- routing
-- reservoirs
-
-Coordinates include:
+### Coordinates
 
 - `time`
 - `y`
 - `x`
 - `reservoir`
+- `sensor`
+
+The `sensor` coordinate may be present because the shared coordinate builder is used, but observation values are stored in the observation dataset.
+
+### Static fields
+
+- `basin_mask`
+
+### Meteorology
+
+- `precipitation`
+- `background_precipitation`
+- `storm_mask`
+- `air_temperature`
+
+### Energy
+
+- `pet`
+- `shortwave_radiation`
+- `net_radiation`
+
+### Hydrology
+
+- `aet`
+- `soil_moisture`
+- `infiltration`
+- `surface_runoff`
+- `subsurface_runoff`
+
+### Routing
+
+- `channel_flow`
+- `outlet_discharge`
+
+### Reservoirs
+
+- `reservoir_inflow`
+- `reservoir_storage`
+- `reservoir_release`
+- `reservoir_spill`
 
 ## Observation dataset
+
 Contains synthetic observation products across time and sensors.
 
-Main variable groups:
+Main variables:
 
 - `obs_precipitation`
 - `obs_discharge`
@@ -199,9 +295,10 @@ Coordinates include:
 
 It also stores sensor metadata:
 
-- sensor name
-- sensor type
-- sensor cell indices
+- `sensor_name`
+- `sensor_type`
+- `sensor_cell_y`
+- `sensor_cell_x`
 
 ## Dataset writing workflow
 
@@ -212,8 +309,24 @@ The runner:
 3. merges physical outputs into `SimulationState`
 4. writes that state into the truth dataset
 5. writes the observation product into the observation dataset
+6. appends one row to the step-summary CSV buffer
+7. appends one row per sensor to the observation CSV buffer
 
 This avoids ad hoc file writing inside each module and keeps persistence centralized.
+
+## CSV model
+
+The runner also writes two families of CSV files:
+
+- step summary rows
+- per-sensor observation rows
+
+Both are written in English column names and also in Spanish translated column names with `_es` suffix.
+
+CSV formatting is spreadsheet-friendly:
+
+- semicolon separator: `;`
+- comma decimal separator: `,`
 
 ## Why this model works well
 

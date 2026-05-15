@@ -20,6 +20,12 @@ The hydrology model keeps one persistent field through time:
 
 This represents the current water stored in the soil bucket for each grid cell.
 
+The model initializes this state as:
+
+```text
+initial_soil_moisture = capacity_mm * initial_relative
+```
+
 ## Soil-bucket concept
 
 Each cell is represented by a simplified soil bucket with:
@@ -51,6 +57,8 @@ The final balance is conceptually:
 ```text
 soil_final = soil_prev + infiltration - aet - percolation
 ```
+
+Surface excess does not enter the soil bucket and is later exposed as surface runoff.
 
 ## 1. Relative saturation
 
@@ -112,9 +120,15 @@ Percolation cannot exceed the water stored after AET.
 After the soil update, the hydrology module derives runoff products:
 
 - **surface runoff** = direct surface excess
-- **subsurface runoff** = a configurable fraction of percolation
+- **subsurface runoff** = configurable fraction of percolation
 
-This keeps the hydrology module simple while still distinguishing rapid and slower runoff components.
+The fraction is controlled by:
+
+```text
+subsurface_runoff_fraction
+```
+
+A value of `1.0` means all percolation is exposed as subsurface runoff. Lower values represent deeper losses outside the current MVP.
 
 ## Outputs
 
@@ -157,7 +171,7 @@ This is an intentionally lightweight hydrology model. It does not include:
 - snow
 - channel processes
 
-Its role in the simulator is narrower and very clear:
+Its role in the simulator is narrow and explicit:
 
 - translate precipitation and PET into local hydrologic response
 - preserve temporal soil-memory effects

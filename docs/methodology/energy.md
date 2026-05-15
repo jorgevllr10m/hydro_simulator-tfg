@@ -8,18 +8,36 @@ The energy module computes three fields for every simulation step:
 - net radiation
 - potential evapotranspiration (PET)
 
-Its purpose is to transform time, latitude, and cloudiness proxy information into an evaporative forcing that can later be consumed by the hydrology module.
+Its purpose is to transform time, latitude, precipitation, and air temperature into an evaporative forcing that can later be consumed by the hydrology module.
 
 ## Inputs
 
 The module receives:
 
+- simulation domain
+- simulation step
 - simulation timestamp
-- grid shape
 - precipitation field
 - air-temperature field
 
-The timestamp controls solar geometry. The precipitation field is used as a simple proxy for cloud attenuation.
+The timestamp and latitude control solar geometry. The precipitation field is used as a simple proxy for cloud attenuation. The air-temperature field is used by the PET calculation.
+
+## Configuration
+
+The top-level runtime config is `EnergyBalanceConfig`.
+
+It contains:
+
+- `latitude_deg`
+- `solar`, a `SolarRadiationConfig`
+- `pet`, a `PETConfig`
+
+The current YAML schema exposes:
+
+- `energy.latitude_deg`
+- `energy.pet.pet_multiplier`
+
+The remaining solar and Priestley-Taylor parameters use runtime dataclass defaults unless the code is extended to expose them in the schema.
 
 ## 1. Solar geometry
 
@@ -34,7 +52,7 @@ Derived quantities include:
 - local fractional hour
 - solar declination
 - hour angle
-- inverse Earth–Sun distance factor
+- inverse Earth-Sun distance factor
 - cosine of the solar zenith angle
 - solar elevation angle
 - daylight duration
@@ -48,8 +66,10 @@ Using solar geometry and a solar constant, the model estimates top-of-atmosphere
 
 This stage captures:
 
-- the annual Earth–Sun distance modulation
+- the annual Earth-Sun distance modulation
 - the diurnal solar-angle modulation
+
+During night, the clipped cosine of the zenith angle is zero, so incoming shortwave radiation is zero.
 
 ## 3. Clear-sky radiation
 
@@ -86,13 +106,13 @@ over the simulation step duration.
 
 In the current MVP, net radiation is approximated from net shortwave only. Longwave components are not modeled explicitly.
 
-## 6. PET with simplified Priestley–Taylor
+## 6. PET with simplified Priestley-Taylor
 
 PET is computed from:
 
 - net radiation
 - air temperature
-- Priestley–Taylor parameters
+- Priestley-Taylor parameters
 
 Intermediate diagnostics include:
 
@@ -108,8 +128,10 @@ PET = alpha * equilibrium evaporation * pet_multiplier
 
 where:
 
-- `alpha` is the Priestley–Taylor coefficient
+- `alpha` is the Priestley-Taylor coefficient
 - `pet_multiplier` is a scenario-level scaling factor
+
+All negative radiation and PET values are clipped to physically meaningful non-negative values.
 
 ## Why PET is computed here
 
@@ -129,6 +151,16 @@ The module stores detailed step diagnostics that include:
 - PET intermediate fields
 
 These are useful for debugging and for explaining how PET changed through time.
+
+## Outputs
+
+The public `EnergyOutput` contains:
+
+- `pet`
+- `shortwave_radiation`
+- `net_radiation`
+
+These fields are merged into the physical simulation state and written to the truth dataset.
 
 ## Main simplifications
 

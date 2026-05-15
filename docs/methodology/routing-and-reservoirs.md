@@ -38,12 +38,19 @@ The routing module receives runoff depths in `mm/dt` and converts them to latera
 - cell area
 - step duration
 
+The conversion is:
+
+```text
+volume_per_step_m3 = runoff_mm_dt / 1000 * cell_area_m2
+discharge_m3s = volume_per_step_m3 / dt_seconds
+```
+
 By default, lateral inflow may include:
 
 - surface runoff
 - subsurface runoff
 
-This is controlled by configuration.
+This is controlled by `include_subsurface_runoff`.
 
 ## 3. Channel routing in non-reservoir cells
 
@@ -51,10 +58,17 @@ For normal cells, routed outflow is computed with a linear-reservoir response.
 
 Behavior:
 
-- smaller time constant → faster response
-- larger time constant → more lag and attenuation
+- `channel_time_constant_hours = 0` → instantaneous routing
+- larger time constant → stronger lag and attenuation
 
-The module keeps the previous routed outflow for every active cell, which introduces temporal memory.
+The discrete update is:
+
+```text
+outflow_t = outflow_(t-1) + alpha * (inflow_t - outflow_(t-1))
+alpha = dt / (K + dt)
+```
+
+The module keeps the previous routed outflow for every cell, which introduces temporal memory.
 
 ## 4. Reservoir cells
 
@@ -68,23 +82,28 @@ For reservoir cells, the step logic is:
 4. update reservoir storage with inflow, evaporation, release, and spill
 5. propagate total reservoir outflow downstream
 
+If reservoir regulation is disabled, reservoir cells behave like ordinary channel cells for routing purposes.
+
 ## 5. Reservoir operating rules
 
 Reservoir operating rules are based on normalized storage fraction.
 
 The model defines three zones:
 
-- **conservation**
-- **normal**
-- **flood_control**
+- `conservation`
+- `normal`
+- `flood_control`
 
 ### Conservation zone
+
 When storage is low, the reservoir tries to preserve water and releases only the minimum configured flow.
 
 ### Normal zone
+
 Between two storage fractions, requested release increases linearly from minimum release to target release.
 
 ### Flood-control zone
+
 When storage is high, requested release increases further, from target release toward maximum controlled release.
 
 These rules decide only the **requested controlled release**. Spill is handled later by the storage balance if capacity is still exceeded.
@@ -98,16 +117,36 @@ The simplified reservoir storage update uses the following order:
 3. remove controlled release volume
 4. spill any excess volume above capacity
 
+Conceptually:
+
+```text
+storage_final = storage_prev + inflow_volume - evaporation_loss - controlled_release_volume - spill_volume
+```
+
 ### Reservoir area
-Surface area grows with storage using a power-law relationship.
+
+Surface area grows with storage using a power-law relationship:
+
+```text
+area = area_max * (storage / capacity) ** area_exponent
+```
 
 ### Reservoir evaporation
-PET at the reservoir cell is converted to open-water evaporation using a configurable factor and the current surface area.
+
+PET at the reservoir cell is converted to open-water evaporation using:
+
+- current reservoir surface area
+- `evaporation_factor`
+- PET depth for the current step
+
+Evaporation loss cannot exceed available storage.
 
 ### Controlled release
-Requested release is limited by the water actually available after inflow and evaporation.
+
+Requested release is converted to a step volume and limited by the water actually available after inflow and evaporation.
 
 ### Spill
+
 Any remaining volume above capacity is spilled.
 
 ## 7. Output variables
@@ -116,7 +155,7 @@ The routing output includes:
 
 - lateral inflow field
 - total cell inflow field
-- routed channel flow field
+- routed channel-flow field
 - outlet discharge
 - reservoir inflow
 - requested release
@@ -129,11 +168,22 @@ The routing output includes:
 - total reservoir outflow
 - current reservoir operation zone
 
+The truth dataset currently persists the core routing and reservoir state variables:
+
+- `channel_flow`
+- `outlet_discharge`
+- `reservoir_inflow`
+- `reservoir_storage`
+- `reservoir_release`
+- `reservoir_spill`
+
+Additional reservoir diagnostics are available in the in-memory routing output and can be added to the dataset later if needed.
+
 ## 8. Persistent state
 
 The routing model keeps:
 
-- previous routed outflow for each active cell
+- previous routed outflow for each grid cell
 - current storage for each reservoir
 
 This makes the routing response dynamic over time.

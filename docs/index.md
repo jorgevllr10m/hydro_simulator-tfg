@@ -16,7 +16,7 @@ This directory contains the technical documentation for the simulator repository
 ## Methodology
 
 - [`methodology/meteorology.md`](methodology/meteorology.md)
-  Latent environment, weather regimes, storm birth, advection, rendering, and background precipitation.
+  Latent environment, weather regimes, storm birth, advection, rendering, background precipitation, and spatial temperature fields.
 
 - [`methodology/energy.md`](methodology/energy.md)
   Solar geometry, radiation, and PET computation.
@@ -36,7 +36,7 @@ This directory contains the technical documentation for the simulator repository
   How to run simulations, generate plots, and compute validation summaries.
 
 - [`usage/outputs.md`](usage/outputs.md)
-  Description of datasets, CSV files, plots, and run-directory contents.
+  Description of datasets, CSV files, figures, validation outputs, and run-directory contents.
 
 ## Validation
 

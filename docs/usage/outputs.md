@@ -8,66 +8,144 @@ A completed run is written to:
 outputs/runs/<run_name>/
 ```
 
-Typical contents include:
+Typical contents produced directly by `hydro-sim` are:
 
 ```text
-simulation_truth.nc
-simulation_observations.nc
-simulation_summary.csv
-simulation_observations.csv
-plots/
-validation/
-figures/          # if hydro-sim-plot is executed
+simulation_truth_<scenario>.nc
+simulation_observations_<scenario>.nc
+simulation_summary_<scenario>.csv
+simulation_summary_<scenario>_es.csv
+simulation_observations_<scenario>.csv
+simulation_observations_<scenario>_es.csv
 ```
 
 If NetCDF writing is not available, datasets may be saved as `.pkl` instead.
 
-## 1. Truth dataset
+Additional directories may be created by post-processing commands:
 
-Filename:
+```text
+figures/          # created by hydro-sim-plot
+validation/       # created by hydro-sim-validate
+```
+
+## Post-processing input resolution
+
+The runner writes scenario-suffixed file names. The post-processing commands now resolve those names directly from the run directory.
+
+`hydro-sim-plot` supports both:
 
 ```text
 simulation_truth.nc
+simulation_truth.pkl
+simulation_summary.csv
+simulation_observations.csv
+```
+
+and:
+
+```text
+simulation_truth_<scenario>.nc
+simulation_truth_<scenario>.pkl
+simulation_summary_<scenario>.csv
+simulation_observations_<scenario>.csv
+```
+
+When possible, it reads the `scenario_name` attribute from the truth dataset and then selects the matching summary and observation CSV.
+
+`hydro-sim-validate` supports both:
+
+```text
+simulation_summary.csv
+simulation_observations.csv
+```
+
+and:
+
+```text
+simulation_summary_<scenario>.csv
+simulation_observations_<scenario>.csv
+```
+
+The validation command requires a matching summary/observation pair with the same suffix. Both post-processing commands ignore `_es.csv` input files because their parsers expect internal English column names.
+
+## 1. Truth dataset
+
+Filename produced by the runner:
+
+```text
+simulation_truth_<scenario>.nc
+```
+
+Fallback filename if NetCDF writing is unavailable:
+
+```text
+simulation_truth_<scenario>.pkl
 ```
 
 Contains the physical simulator truth.
 
 ### Main variable groups
 
+#### Static domain
+
+- `basin_mask`
+
 #### Meteorology
-- precipitation
-- background_precipitation
-- storm_mask
-- air_temperature
+
+- `precipitation`
+- `background_precipitation`
+- `storm_mask`
+- `air_temperature`
 
 #### Energy
-- pet
-- aet
-- shortwave_radiation
-- net_radiation
+
+- `pet`
+- `shortwave_radiation`
+- `net_radiation`
 
 #### Hydrology
-- soil_moisture
-- infiltration
-- surface_runoff
-- subsurface_runoff
+
+- `aet`
+- `soil_moisture`
+- `infiltration`
+- `surface_runoff`
+- `subsurface_runoff`
 
 #### Routing
-- channel_flow
-- outlet_discharge
+
+- `channel_flow`
+- `outlet_discharge`
 
 #### Reservoirs
-- reservoir_inflow
-- reservoir_storage
-- reservoir_release
-- reservoir_spill
+
+- `reservoir_inflow`
+- `reservoir_storage`
+- `reservoir_release`
+- `reservoir_spill`
+
+### Dataset metadata
+
+The dataset stores attributes such as:
+
+- run name
+- selected domain preset
+- selected scenario name
+- spatial shape
+- number of steps
+- time-step duration
 
 ## 2. Observation dataset
 
-Filename:
+Filename produced by the runner:
 
 ```text
-simulation_observations.nc
+simulation_observations_<scenario>.nc
+```
+
+Fallback filename if NetCDF writing is unavailable:
+
+```text
+simulation_observations_<scenario>.pkl
 ```
 
 Contains synthetic sensor products.
@@ -81,18 +159,26 @@ Contains synthetic sensor products.
 - `obs_quality_flag`
 
 ### Sensor metadata
+
 The dataset also stores:
 
-- sensor name
-- sensor type
-- sensor cell indices
+- `sensor_name`
+- `sensor_type`
+- `sensor_cell_y`
+- `sensor_cell_x`
 
 ## 3. Step summary CSV
 
-Filename:
+Filename produced by the runner:
 
 ```text
-simulation_summary.csv
+simulation_summary_<scenario>.csv
+```
+
+Spanish-column variant:
+
+```text
+simulation_summary_<scenario>_es.csv
 ```
 
 Purpose:
@@ -103,16 +189,24 @@ Purpose:
 
 It includes aggregated step metrics from all modules, such as:
 
-- regime
+- step index and timestamp
+- weather regime
 - number of new and tracked storms
-- precipitation metrics
-- background contribution
+- precipitation totals and maxima
+- background precipitation contribution
+- background activity factor
+- wet/dry spell index
+- band reorganization diagnostics
+- storm-mask active-cell count
+- air-temperature mean, minimum, maximum, and range
 - PET and AET means
-- soil moisture
-- runoff totals
-- channel flow and outlet discharge
-- reservoir inflow, release, spill, and storage
-- observation counts
+- radiation means
+- soil moisture mean
+- infiltration and runoff totals
+- channel-flow mean and maximum
+- outlet discharge
+- reservoir inflow, release, spill, and storage summaries
+- observation availability, missing, and censoring counts
 
 The CSV uses:
 
@@ -123,10 +217,16 @@ to be spreadsheet-friendly.
 
 ## 4. Per-sensor observation CSV
 
-Filename:
+Filename produced by the runner:
 
 ```text
-simulation_observations.csv
+simulation_observations_<scenario>.csv
+```
+
+Spanish-column variant:
+
+```text
+simulation_observations_<scenario>_es.csv
 ```
 
 Purpose:
@@ -136,7 +236,8 @@ Purpose:
 
 Each row corresponds to one sensor at one step and includes:
 
-- sensor identity and type
+- step and timestamp
+- sensor index, name, and type
 - cell indices
 - truth value
 - observed value
@@ -144,30 +245,9 @@ Each row corresponds to one sensor at one step and includes:
 - quality flag
 - quality label
 
-## 5. Quick-look plots generated by the runner
+The quality label is derived from the observation quality flag.
 
-Directory:
-
-```text
-plots/
-```
-
-These are created directly by `hydro-sim`.
-
-Typical examples:
-
-- accumulated precipitation
-- accumulated background precipitation
-- accumulated PET and AET
-- accumulated infiltration and runoff
-- mean and final soil moisture
-- mean radiation fields
-- peak-precipitation and peak-runoff snapshots
-- time series of precipitation, PET, AET, runoff, channel flow, and outlet discharge
-
-These plots are intended for rapid inspection, not as final publication figures.
-
-## 6. Additional figures generated by `hydro-sim-plot`
+## 5. Figures generated by `hydro-sim-plot`
 
 Directory:
 
@@ -175,15 +255,29 @@ Directory:
 figures/
 ```
 
-This command creates a second, post-processed figure set, organized into subdirectories such as:
+This command creates a post-processed figure set with Spanish titles, axis labels, legends, and console status messages. The PNG filenames remain stable and are not translated. The figures are organized into subdirectories such as:
 
 - `fields/`
 - `summary/`
 - `sensors/`
 
-This is useful when you want to regenerate plots without re-running the simulation.
+Typical examples include:
 
-## 7. Validation outputs
+- accumulated precipitation
+- accumulated background precipitation
+- accumulated PET and AET
+- accumulated infiltration and runoff
+- accumulated subsurface runoff
+- mean and final soil moisture
+- mean shortwave and net radiation fields
+- peak-precipitation and peak-runoff snapshots
+- first band-reorganization snapshots when available
+- time series of precipitation, background fraction, band reorganization, PET, AET, runoff, radiation, channel flow, outlet discharge, reservoir storage, and observation availability
+- truth-vs-observed plots for each sensor
+
+These plots are intended for rapid inspection, not as final publication figures.
+
+## 6. Validation outputs
 
 Directory:
 
@@ -197,16 +291,16 @@ Typical files:
 - `validacion_observaciones_por_tipo.csv`
 - `resumen_validacion_sistema.csv`
 
-These are described in more detail in `../validation/validation-workflow.md`.
+These CSVs use Spanish column names. The run-level summary description and validation console messages are also written in Spanish. These outputs are described in more detail in `../validation/validation-workflow.md`.
 
 ## Suggested interpretation order
 
 When reviewing a run, a practical order is:
 
-1. `simulation_summary.csv`
-2. `plots/`
-3. `simulation_observations.csv`
-4. `validation/`
-5. full NetCDF datasets if deeper inspection is needed
+1. `simulation_summary_<scenario>.csv`
+2. figures from `hydro-sim-plot`
+3. `simulation_observations_<scenario>.csv`
+4. validation outputs
+5. full xarray datasets if deeper inspection is needed
 
 This keeps the first inspection lightweight and only moves to full gridded data when necessary.

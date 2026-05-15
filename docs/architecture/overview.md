@@ -6,8 +6,9 @@ The simulator is organized as a modular hydrometeorological pipeline that produc
 
 - a **truth dataset** containing the simulated physical state
 - an **observation dataset** containing synthetic sensor measurements
-- summary CSV files and quick-look plots for inspection
-- validation CSV files for post-run analysis
+- summary CSV files for inspection
+- post-processed figure files generated from completed runs
+- validation CSV files for internal consistency and observation-behavior analysis
 
 The architecture favors:
 
@@ -23,11 +24,13 @@ For each simulation step, the runner executes the modules in this order:
 1. **Meteorology**
    - Updates the latent weather state.
    - Spawns and evolves storm objects.
-   - Renders total precipitation and air temperature.
+   - Renders storm precipitation and storm mask.
+   - Builds background precipitation.
+   - Builds the spatial air-temperature field.
 
 2. **Energy**
    - Computes solar geometry from timestamp and latitude.
-   - Builds shortwave and net radiation.
+   - Builds shortwave radiation and net radiation.
    - Computes PET.
 
 3. **Hydrology**
@@ -37,43 +40,58 @@ For each simulation step, the runner executes the modules in this order:
 4. **Routing**
    - Converts runoff depth to discharge.
    - Routes water through the synthetic drainage network.
-   - Updates reservoir storage, releases, and spill.
+   - Updates reservoir storage, releases, spill, evaporation losses, and outlet discharge.
 
 5. **Observation**
    - Samples truth values at configured sensor locations.
    - Produces noisy, possibly missing or censored observations.
 
 6. **Persistence**
-   - Merges module outputs into a unified simulation state.
+   - Merges physical module outputs into a unified simulation state.
    - Writes truth and observation products into xarray datasets.
-   - Accumulates CSV summaries and run diagnostics.
+   - Accumulates per-step CSV summaries and per-sensor observation rows.
 
 ## Module boundaries
 
 ### `simulator.config`
+
 Responsible for loading YAML files and validating them with Pydantic schemas.
 
+It resolves:
+
+- master config
+- selected domain preset
+- selected scenario file
+
+It then builds the runtime dataclasses consumed by the simulator modules.
+
 ### `simulator.core`
+
 Contains repository-wide foundational structures:
 
 - spatial and temporal domain definitions
-- shared array aliases and dataclasses
+- shared array aliases and validation conventions
 - module input/output contracts
 - runtime state aggregation
 - dataset creation and writing helpers
+- engine helper for merging module outputs
 
 ### `simulator.meteo`
-Implements the rainfall-generation system:
+
+Implements the rainfall and temperature-generation system:
 
 - latent environment
 - weather regimes
 - advection
 - storm birth
+- band organization
 - storm lifecycle
 - raster rendering
 - correlated background precipitation
+- smooth spatial air-temperature anomalies
 
 ### `simulator.energy`
+
 Implements the atmospheric-energy part of the pipeline:
 
 - solar geometry
@@ -82,6 +100,7 @@ Implements the atmospheric-energy part of the pipeline:
 - PET
 
 ### `simulator.hydro`
+
 Implements local hydrology at cell scale:
 
 - soil bucket storage
@@ -90,14 +109,17 @@ Implements local hydrology at cell scale:
 - percolation and runoff partition
 
 ### `simulator.routing`
+
 Implements downstream propagation and regulated storage:
 
 - synthetic static drainage network
 - linear channel routing
 - reservoir operating rules
 - reservoir storage balance
+- reservoir evaporation and spill
 
 ### `simulator.obs`
+
 Implements the synthetic observation operator:
 
 - precipitation gauges
@@ -106,6 +128,7 @@ Implements the synthetic observation operator:
 - noise, missingness, and detection-threshold censoring
 
 ### `simulator.cli`
+
 Exposes the user-facing commands:
 
 - `hydro-sim`
@@ -115,17 +138,20 @@ Exposes the user-facing commands:
 ## Design principles
 
 ### 1. Typed interfaces between modules
+
 Each module consumes a typed input dataclass and returns a typed output dataclass. This keeps dependencies explicit and reduces hidden coupling.
 
 ### 2. Persistent state only where needed
-Some modules are purely diagnostic within a step, while others maintain internal state across time:
 
-- meteorology keeps active storms and latent state
+Some modules maintain internal state across time:
+
+- meteorology keeps active storms and the latest latent state
 - hydrology keeps soil moisture
 - routing keeps previous channel outflow and reservoir storage
-- observations keep only RNG state and last diagnostics
+- observations keep RNG state and latest diagnostics
 
 ### 3. Separation between truth and observations
+
 The project distinguishes clearly between:
 
 - **physical truth** produced by the simulator
@@ -134,7 +160,8 @@ The project distinguishes clearly between:
 This separation is reflected in the dataset writers and output files.
 
 ### 4. Reproducible stochasticity
-Random processes are used extensively, but each configurable subsystem uses its own seeded random generator so repeated runs remain reproducible.
+
+Random processes are used extensively, but configurable stochastic subsystems use seeded random generators so repeated runs remain reproducible when the code and configuration are unchanged.
 
 ## Typical run flow
 
@@ -156,7 +183,8 @@ The repository stores several levels of information simultaneously:
 - raw gridded truth fields
 - per-sensor observation products
 - aggregated step summaries
-- quick-look plots
+- translated Spanish CSV summaries
+- post-processed figures
 - validation summaries
 
 This makes the simulator useful both as a data generator and as an inspectable experimental environment.
