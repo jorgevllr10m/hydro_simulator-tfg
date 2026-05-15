@@ -1,31 +1,28 @@
-# Entorno virtual
+# Virtual environment
 .venv/
 
-# Cachés de Python
+# Python caches
 __pycache__/
 *.py[cod]
 
-# Herramientas y tests
+# Tools and tests
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Archivos de sistema / editor
+# System / editor files
 .vscode/
 .DS_Store
 Thumbs.db
 
-# Salidas del proyecto
+# Project outputs
 outputs/
 
-# Cobertura
+# Coverage
 .coverage
 htmlcov/
 
-# Artefactos de empaquetado
+# Packaging artifacts
 *.egg-info/
 build/
 dist/
