@@ -8,8 +8,8 @@ meteo:
     spell_memory: 0.97
 
   storm_birth:
-    expected_births_per_step: 1.40
-    mean_peak_intensity_mmph: 15.0
+    expected_births_per_step: 1.25
+    mean_peak_intensity_mmph: 14.0
     mean_duration_steps: 8
     band_cluster_probability: 0.60
 

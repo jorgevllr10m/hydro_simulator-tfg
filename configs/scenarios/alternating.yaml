@@ -16,8 +16,8 @@ meteo:
   background:
     enabled: true
     random_seed: 2401
-    temporal_persistence: 0.70
-    max_intensity_mm_dt: 1.4
+    temporal_persistence: 0.72
+    max_intensity_mm_dt: 1.8
 
   temperature:
     enabled: true

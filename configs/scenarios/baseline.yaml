@@ -14,8 +14,8 @@ meteo:
 
   background:
     enabled: true
-    temporal_persistence: 0.85
-    max_intensity_mm_dt: 1.8
+    temporal_persistence: 0.88
+    max_intensity_mm_dt: 3.2
 
   temperature:
     enabled: true
