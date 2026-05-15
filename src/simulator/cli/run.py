@@ -529,37 +529,39 @@ def main() -> None:
             f"obs_censored={observation_diagnostics.n_censored}"
         )
 
+    scenario_suffix = loaded.scenario_name
+
     truth_dataset_path = _save_dataset(
         truth_ds,
         output_dir=run_output_dir,
-        file_stem="simulation_truth",
+        file_stem=f"simulation_truth_{scenario_suffix}",
     )
     observation_dataset_path = _save_dataset(
         observation_ds,
         output_dir=run_output_dir,
-        file_stem="simulation_observations",
+        file_stem=f"simulation_observations_{scenario_suffix}",
     )
 
-    summary_csv_path = run_output_dir / "simulation_summary.csv"
+    summary_csv_path = run_output_dir / f"simulation_summary_{scenario_suffix}.csv"
     _write_summary_csv(
         rows=summary_rows,
         output_path=summary_csv_path,
     )
 
-    summary_csv_es_path = run_output_dir / "simulation_summary_es.csv"
+    summary_csv_es_path = run_output_dir / f"simulation_summary_{scenario_suffix}_es.csv"
     _write_translated_csv(
         rows=summary_rows,
         output_path=summary_csv_es_path,
         column_names=SUMMARY_COLUMN_NAMES_ES,
     )
 
-    observation_csv_path = run_output_dir / "simulation_observations.csv"
+    observation_csv_path = run_output_dir / f"simulation_observations_{scenario_suffix}.csv"
     _write_summary_csv(
         rows=observation_rows,
         output_path=observation_csv_path,
     )
 
-    observation_csv_es_path = run_output_dir / "simulation_observations_es.csv"
+    observation_csv_es_path = run_output_dir / f"simulation_observations_{scenario_suffix}_es.csv"
     _write_translated_csv(
         rows=observation_rows,
         output_path=observation_csv_es_path,
