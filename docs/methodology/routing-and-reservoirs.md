@@ -84,6 +84,8 @@ For reservoir cells, the step logic is:
 
 If reservoir regulation is disabled, reservoir cells behave like ordinary channel cells for routing purposes.
 
+In that disabled-regulation mode, reservoir-specific diagnostics are returned as `NaN` and reservoir operation zones are returned as `None`. This indicates that reservoir storage, release, spill, evaporation, and operating zone are not physically applicable for that run mode.
+
 ## 5. Reservoir operating rules
 
 Reservoir operating rules are based on normalized storage fraction.
@@ -107,6 +109,17 @@ Between two storage fractions, requested release increases linearly from minimum
 When storage is high, requested release increases further, from target release toward maximum controlled release.
 
 These rules decide only the **requested controlled release**. Spill is handled later by the storage balance if capacity is still exceeded.
+
+### Rule-curve constraints
+
+The storage thresholds must define valid interpolation intervals:
+
+- `conservation_fraction` must be within `[0, 1]`
+- `flood_fraction` must be within `[0, 1]`
+- `flood_fraction` must be greater than `conservation_fraction`
+- `flood_fraction` must be strictly lower than `1.0`
+
+The last constraint is required because the flood-control release curve interpolates from `flood_fraction` to `1.0`. If `flood_fraction` were exactly `1.0`, that interpolation interval would collapse.
 
 ## 6. Reservoir storage balance
 
@@ -177,6 +190,8 @@ The truth dataset currently persists the core routing and reservoir state variab
 - `reservoir_release`
 - `reservoir_spill`
 
+When reservoir regulation is disabled, persisted reservoir variables contain `NaN` values because the reservoir balance is not active.
+
 Additional reservoir diagnostics are available in the in-memory routing output and can be added to the dataset later if needed.
 
 ## 8. Persistent state
@@ -187,6 +202,8 @@ The routing model keeps:
 - current storage for each reservoir
 
 This makes the routing response dynamic over time.
+
+When reservoir regulation is disabled, the reservoir storage state is not used to compute routing outputs. The channel-routing memory is still active for all cells, including cells that would otherwise contain reservoirs.
 
 ## Scope and simplifications
 

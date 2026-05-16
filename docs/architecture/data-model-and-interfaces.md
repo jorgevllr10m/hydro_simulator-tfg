@@ -90,6 +90,8 @@ It also exposes:
 
 The external YAML uses `start_date`, `end_date`, and `time_step_hours`; the loader converts these to the internal representation.
 
+In the runner, the timestamp array is resolved once before the main loop and then iterated step by step. This avoids repeatedly reconstructing the same sequence.
+
 ## Dynamic simulation state
 
 `SimulationState` is the merged physical state for one time step. It contains the main products from all physical modules:
@@ -129,7 +131,8 @@ Input:
 - domain
 - step
 - timestamp
-- optional previous state
+
+The meteorology model is stateful. It keeps its own latent weather state, active storms, random generators, and diagnostics internally. Therefore the meteorology input does not receive a previous simulation state.
 
 Output:
 
@@ -200,6 +203,8 @@ Output:
 - reservoir total outflow
 - reservoir operation zones
 
+If reservoir regulation is disabled, reservoir cells are routed as ordinary channel cells. Reservoir-specific output vectors are still present, but their values are set to `NaN` and their operation zones are `None`, because those reservoir diagnostics are not physically applicable in the disabled-regulation mode.
+
 Only a subset of reservoir diagnostics is currently persisted in the truth dataset.
 
 ### Observation
@@ -218,6 +223,8 @@ Output:
 - observation vectors
 - availability mask
 - quality flags
+
+If a reservoir-storage sensor receives a non-finite storage truth value, for example `NaN` from disabled reservoir regulation, the observation is marked as missing.
 
 ## Dataset model
 
@@ -275,6 +282,8 @@ The `sensor` coordinate may be present because the shared coordinate builder is 
 - `reservoir_storage`
 - `reservoir_release`
 - `reservoir_spill`
+
+When reservoir regulation is disabled, persisted reservoir variables are expected to contain `NaN` values because the reservoir balance is not active.
 
 ## Observation dataset
 

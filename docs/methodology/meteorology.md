@@ -127,6 +127,16 @@ For each new storm, the model samples:
 
 All these properties are modulated by the current latent environment.
 
+### Storm geometry constraints
+
+Storm cells are represented as rotated ellipses. To keep the geometry valid:
+
+- the semi-major axis must be strictly positive
+- the semi-minor axis must be strictly positive
+- the semi-minor axis cannot exceed the semi-major axis
+
+These constraints prevent degenerate storm footprints, such as zero-width ellipses, and protect the raster renderer from invalid divisions.
+
 ### Band organization
 
 When several storms are born in the same step, the model may reorganize them into a line or band. This is more likely when the environment is organized.
@@ -138,6 +148,8 @@ The band reorganization can:
 - place births along a preferred axis
 - reduce cross-band dispersion
 - reduce minor-axis width to sharpen band structure
+
+The band minor-axis factor must be strictly positive and no greater than one. This allows bands to become sharper while preventing the minor axis from collapsing to zero.
 
 This helps generate structured rain features instead of purely isolated cells.
 
@@ -243,6 +255,8 @@ For each time step:
 10. store step diagnostics
 11. advance active storms for the next time step
 12. remove storms that expire after the advance
+
+The meteorology model owns its temporal state internally. The step input provides the domain, step index, and timestamp; previous meteorological state is not passed through the public input contract.
 
 ## Diagnostics
 

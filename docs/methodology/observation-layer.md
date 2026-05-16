@@ -61,6 +61,8 @@ Possible effects:
 
 This sensor type requires an exact one-to-one match between the sensor cell and a reservoir cell. Observed storage is clipped to the physical interval `[0, capacity]`.
 
+If the reservoir-storage truth value is not finite, for example because reservoir regulation is disabled and reservoir outputs are marked as `NaN`, the sensor returns a missing observation. This prevents non-applicable reservoir diagnostics from being converted into artificial valid measurements.
+
 ## Quality flags
 
 Each observed value is associated with a quality/status code:
@@ -101,6 +103,8 @@ Example:
 - a precipitation gauge has a value in `obs_precipitation`
 - the same sensor has `NaN` in `obs_discharge` and `obs_storage`
 
+A missing reservoir-storage observation also remains `NaN` in `obs_storage` and receives a `MISSING` quality flag.
+
 ## Missing data model
 
 Missingness is sampled independently using configured probabilities for each sensor class.
@@ -112,6 +116,8 @@ This allows scenarios with:
 - more realistic synthetic datasets for testing downstream models
 
 If a sensor family is disabled, matching sensors return missing values.
+
+Missing values can also occur deterministically when the required truth source is not applicable or not finite, as with reservoir-storage sensors during disabled reservoir regulation.
 
 ## Noise model
 
