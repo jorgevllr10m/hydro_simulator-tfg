@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -89,10 +88,6 @@ class SimulationWindowConfig(BaseModel):
     start_date: str = Field(..., description="Simulation start date/datetime in ISO format")
     end_date: str = Field(..., description="Simulation end date/datetime in ISO format (exclusive)")
     time_step_hours: int = Field(..., gt=0, description="Simulation time step in hours")
-    calendar_type: Literal["monthly", "seasonal"] = Field(
-        "monthly",
-        description="Calendar interpretation used for seasonal indexing",
-    )
 
     @model_validator(mode="after")
     def validate_time_window(self) -> "SimulationWindowConfig":

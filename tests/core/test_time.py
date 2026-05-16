@@ -15,5 +15,3 @@ def test_time_domain():
     # Imprime los resultados
     print(time_domain.timestamps)  # Timestamps generados
     print(time_domain.step_index)  # Índice de pasos
-    print(time_domain.months)  # Ver los meses
-    print(time_domain.seasons)  # Ver las estaciones

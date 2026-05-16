@@ -127,7 +127,6 @@ class LoadedConfig:
             start=start_dt,
             dt_seconds=dt_seconds,
             n_steps=n_steps,
-            calendar_type=simulation.calendar_type,
         )
 
     def build_simulation_domain(self) -> SimulationDomain:
