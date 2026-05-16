@@ -130,6 +130,11 @@ class ReservoirRulesConfig:
                 f"'flood_fraction' must be > 'conservation_fraction', got conservation={conservation_fraction}, flood={flood_fraction}"
             )
 
+        if flood_fraction >= 1.0:
+            raise ValueError(
+                f"'flood_fraction' must be < 1.0 because the flood-control release curve interpolates up to 1.0, got {flood_fraction}"
+            )
+
 
 @dataclass(frozen=True)
 class ReservoirRuleDecision:

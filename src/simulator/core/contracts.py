@@ -21,7 +21,6 @@ class MeteoInput:
     domain: SimulationDomain
     step: int
     timestamp: datetime
-    previous_state: SimulationState | None = None
 
 
 @dataclass(frozen=True)

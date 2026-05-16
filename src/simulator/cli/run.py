@@ -285,8 +285,8 @@ def _save_dataset(
 ) -> Path:
     """Persist the dataset to disk.
 
-    Preferred format is NetCDF. If the required backend is not available,
-    the runner falls back to a pickle file so the run still completes.
+    Preferred format is NetCDF. If NetCDF writing fails, the runner falls
+    back to pickle but reports the original error.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -294,10 +294,19 @@ def _save_dataset(
     try:
         ds.to_netcdf(netcdf_path)
         return netcdf_path
-    except Exception:
+    except Exception as exc:
         pickle_path = output_dir / f"{file_stem}.pkl"
+
+        print(
+            "AVISO: no se pudo escribir el dataset en formato NetCDF. "
+            f"Se usará pickle como fallback. Ruta NetCDF: {netcdf_path}. "
+            f"Ruta pickle: {pickle_path}. "
+            f"Error original: {type(exc).__name__}: {exc}"
+        )
+
         with pickle_path.open("wb") as file:
             pickle.dump(ds, file)
+
         return pickle_path
 
 
@@ -359,15 +368,14 @@ def main() -> None:
     print(f"Regulación de embalses activada: {routing_config.enable_reservoirs}")
     print(f"Sensores en el dominio: {len(domain.sensors)}")
 
-    for step in range(domain.n_steps):
-        timestamp = domain.time.timestamps[step]
+    timestamps = domain.time.timestamps
 
+    for step, timestamp in enumerate(timestamps):
         # * Execute Meteo module
         meteo_input = MeteoInput(
             domain=domain,
             step=step,
             timestamp=timestamp,
-            previous_state=None,
         )
 
         meteo_output = meteo_model.step(meteo_input)

@@ -448,6 +448,18 @@ class RegulatedRoutingModel:
             if any(zone is None for zone in reservoir_zones):
                 raise RuntimeError("Reservoir zones were not fully assigned during routing.")
 
+        if not self.config.enable_reservoirs:
+            reservoir_inflow_m3s = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_requested_release_m3s = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_storage_fraction = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_surface_area_m2 = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_evaporation_loss_m3 = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_storage_next_m3 = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_release_m3s = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_spill_m3s = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_total_outflow_m3s = np.full(self.n_reservoirs, np.nan, dtype=float)
+            reservoir_zones = [None] * self.n_reservoirs
+
         final_reservoir_zones = tuple(reservoir_zones)
 
         return RegulatedRoutingOutput(

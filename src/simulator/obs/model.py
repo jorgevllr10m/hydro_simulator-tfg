@@ -373,6 +373,10 @@ class ObservationModel:
         reservoir = domain.reservoirs[reservoir_id]
 
         truth = float(observation_input.reservoir_storage[reservoir_id])
+
+        if not np.isfinite(truth):
+            return (float("nan"), False, ObservationQualityFlag.MISSING)
+
         truth = float(np.clip(truth, 0.0, float(reservoir.capacity)))
 
         if self._sample_missing(config.missing_probability):

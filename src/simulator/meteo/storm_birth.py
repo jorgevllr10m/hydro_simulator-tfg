@@ -91,7 +91,7 @@ class StormBirthConfig:
         _validate_positive_float("band_spacing_m", self.band_spacing_m)
         _validate_non_negative_float("band_position_jitter_m", self.band_position_jitter_m)
 
-        _validate_non_negative_float("band_minor_axis_factor", self.band_minor_axis_factor)
+        _validate_positive_float("band_minor_axis_factor", self.band_minor_axis_factor)
         if self.band_minor_axis_factor > 1.0:
             raise ValueError(f"'band_minor_axis_factor' must be <= 1, got {self.band_minor_axis_factor}")
 

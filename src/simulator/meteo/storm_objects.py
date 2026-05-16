@@ -55,7 +55,13 @@ class StormCell:
         self.velocity_v_mps = float(self.velocity_v_mps)
 
         self.semi_major_axis_m = validate_positive_scalar("semi_major_axis_m", self.semi_major_axis_m)
-        self.semi_minor_axis_m = validate_numeric_scalar("semi_minor_axis_m", self.semi_minor_axis_m)
+        self.semi_minor_axis_m = validate_positive_scalar("semi_minor_axis_m", self.semi_minor_axis_m)
+
+        if self.semi_minor_axis_m > self.semi_major_axis_m:
+            raise ValueError(
+                "'semi_minor_axis_m' cannot exceed 'semi_major_axis_m', "
+                f"got minor={self.semi_minor_axis_m}, major={self.semi_major_axis_m}"
+            )
 
         if not isinstance(self.orientation_deg, (int, float)):
             raise TypeError(f"'orientation_deg' must be numeric, got {type(self.orientation_deg).__name__}")
