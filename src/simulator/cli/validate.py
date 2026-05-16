@@ -11,19 +11,19 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser for validation."""
     parser = argparse.ArgumentParser(
         prog="hydro-sim-validate",
-        description="Validate one simulator run using the generated CSV outputs.",
+        description="Valida una ejecución del simulador usando los CSV generados.",
     )
     parser.add_argument(
         "--run-dir",
         type=Path,
         required=True,
-        help="Path to one run output directory, e.g. outputs/runs/base_run",
+        help="Ruta al directorio de salida de una ejecución, por ejemplo outputs/runs/base_run",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Optional validation output directory. Defaults to <run-dir>/validation",
+        help="Directorio opcional para las salidas de validación. Por defecto: <run-dir>/validation",
     )
     return parser
 
@@ -54,7 +54,7 @@ def _parse_csv_int(value: str) -> int:
     text = value.strip()
 
     if text == "":
-        raise ValueError("Cannot parse empty string as int")
+        raise ValueError("No se puede interpretar una cadena vacía como entero")
 
     return int(text)
 
@@ -62,7 +62,7 @@ def _parse_csv_int(value: str) -> int:
 def _read_semicolon_csv(path: Path) -> list[dict[str, str]]:
     """Read one project CSV file using ';' as delimiter."""
     if not path.exists():
-        raise FileNotFoundError(f"Required CSV file not found: {path}")
+        raise FileNotFoundError(f"No se encontró el archivo CSV requerido: {path}")
 
     with path.open("r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file, delimiter=";")
@@ -147,7 +147,10 @@ def _read_summary_rows(path: Path) -> list[dict[str, object]]:
                 "band_births_count": _parse_csv_int(row["band_births_count"]),
                 "band_probability": _parse_csv_float(row["band_probability"]),
                 "storm_mask_active_cells": _parse_csv_int(row["storm_mask_active_cells"]),
+                "air_temperature_min_c": _parse_csv_float(row["air_temperature_min_c"]),
                 "air_temperature_mean_c": _parse_csv_float(row["air_temperature_mean_c"]),
+                "air_temperature_max_c": _parse_csv_float(row["air_temperature_max_c"]),
+                "air_temperature_range_c": _parse_csv_float(row["air_temperature_range_c"]),
                 "pet_mean_mm_dt": _parse_csv_float(row["pet_mean_mm_dt"]),
                 "shortwave_radiation_mean_w_m2": _parse_csv_float(row["shortwave_radiation_mean_w_m2"]),
                 "net_radiation_mean_mj_m2_dt": _parse_csv_float(row["net_radiation_mean_mj_m2_dt"]),
@@ -170,6 +173,98 @@ def _read_summary_rows(path: Path) -> list[dict[str, object]]:
         )
 
     return parsed_rows
+
+
+def _csv_scenario_suffix(path: Path, *, base_stem: str) -> str | None:
+    """Return the scenario suffix encoded in one generated CSV filename."""
+    if path.stem == base_stem:
+        return None
+
+    prefix = f"{base_stem}_"
+    if not path.stem.startswith(prefix):
+        raise ValueError(f"El archivo {path} no coincide con el prefijo esperado {prefix!r}")
+
+    suffix = path.stem[len(prefix) :]
+    if not suffix:
+        raise ValueError(f"El archivo {path} no contiene sufijo de escenario válido")
+
+    return suffix
+
+
+def _collect_input_csv_candidates(run_dir: Path, *, base_stem: str) -> dict[str | None, Path]:
+    """Collect canonical and scenario-suffixed English CSV candidates."""
+    candidates: list[Path] = []
+
+    canonical_path = run_dir / f"{base_stem}.csv"
+    if canonical_path.exists():
+        candidates.append(canonical_path)
+
+    candidates.extend(sorted(path for path in run_dir.glob(f"{base_stem}_*.csv") if path.is_file() and not path.stem.endswith("_es")))
+
+    resolved: dict[str | None, Path] = {}
+    for path in candidates:
+        suffix = _csv_scenario_suffix(path, base_stem=base_stem)
+
+        if suffix in resolved:
+            raise RuntimeError(f"Hay varios CSV para el mismo escenario {suffix!r}: {resolved[suffix]} y {path}")
+
+        resolved[suffix] = path
+
+    return resolved
+
+
+def _format_suffix_for_message(suffix: str | None) -> str:
+    """Format one scenario suffix for user-facing messages."""
+    return "sin sufijo" if suffix is None else suffix
+
+
+SENSOR_TYPE_LABELS_ES: dict[str, str] = {
+    "precipitation": "precipitacion",
+    "discharge": "caudal",
+    "reservoir_storage": "almacenamiento en embalse",
+}
+
+
+def _format_sensor_type_for_output(sensor_type: str) -> str:
+    """Return a Spanish label for one sensor type in validation outputs."""
+    normalized = sensor_type.strip().lower()
+    return SENSOR_TYPE_LABELS_ES.get(normalized, sensor_type)
+
+
+def _resolve_validation_csv_paths(run_dir: Path) -> tuple[Path, Path]:
+    """Resolve the matching English summary and observation CSV files for validation."""
+    summary_candidates = _collect_input_csv_candidates(
+        run_dir,
+        base_stem="simulation_summary",
+    )
+    observation_candidates = _collect_input_csv_candidates(
+        run_dir,
+        base_stem="simulation_observations",
+    )
+
+    common_suffixes = sorted(
+        set(summary_candidates) & set(observation_candidates),
+        key=lambda suffix: "" if suffix is None else suffix,
+    )
+
+    if not common_suffixes:
+        raise FileNotFoundError(
+            "No se ha encontrado una pareja válida de CSV de entrada en "
+            f"{run_dir}. Se esperaba una pareja con el mismo sufijo de escenario: "
+            "simulation_summary_<escenario>.csv y "
+            "simulation_observations_<escenario>.csv, o los nombres antiguos sin sufijo."
+        )
+
+    if len(common_suffixes) > 1:
+        suffixes_text = ", ".join(_format_suffix_for_message(suffix) for suffix in common_suffixes)
+        raise RuntimeError(
+            "Se han encontrado varias parejas de CSV de validación. "
+            "Usa un directorio de ejecución con un único escenario o separa los resultados. "
+            f"Sufijos encontrados: {suffixes_text}"
+        )
+
+    scenario_suffix = common_suffixes[0]
+    return observation_candidates[scenario_suffix], summary_candidates[scenario_suffix]
 
 
 def _safe_mean(values: np.ndarray) -> float:
@@ -310,7 +405,7 @@ def _build_observation_validation_by_sensor(
                 label_fields={
                     "indice_sensor": int(first["sensor_index"]),
                     "nombre_sensor": str(first["sensor_name"]),
-                    "tipo_sensor": str(first["sensor_type"]),
+                    "tipo_sensor": _format_sensor_type_for_output(str(first["sensor_type"])),
                     "celda_y": int(first["cell_y"]),
                     "celda_x": int(first["cell_x"]),
                 },
@@ -336,7 +431,7 @@ def _build_observation_validation_by_type(
             _summarize_observation_group(
                 rows=grouped[sensor_type],
                 label_fields={
-                    "tipo_sensor": sensor_type,
+                    "tipo_sensor": _format_sensor_type_for_output(sensor_type),
                 },
             )
         )
@@ -365,10 +460,10 @@ def _build_system_validation_summary(
         {
             "titulo_resumen": "Resumen agregado de validación del sistema",
             "descripcion_resumen": (
-                "Este archivo resume el comportamiento del run completo. "
+                "Este archivo resume el comportamiento de la ejecucion completa. "
                 "Las variables con 'acumulada_periodo' representan sumas temporales sobre todos los pasos "
-                "de métricas por paso ya agregadas en simulation_summary.csv. "
-                "Las variables con 'media_por_paso' representan medias temporales de esas métricas por paso."
+                "de metricas por paso ya agregadas en el CSV de resumen de la simulacion. "
+                "Las variables con 'media_por_paso' representan medias temporales de esas metricas por paso."
             ),
             "numero_pasos": len(summary_rows),
             "precipitacion_acumulada_periodo_mm_dt": _safe_sum(precipitation_sum),
@@ -397,8 +492,7 @@ def main() -> None:
     run_dir = args.run_dir.resolve()
     output_dir = args.output_dir.resolve() if args.output_dir is not None else run_dir / "validation"
 
-    observation_csv_path = run_dir / "simulation_observations.csv"
-    summary_csv_path = run_dir / "simulation_summary.csv"
+    observation_csv_path, summary_csv_path = _resolve_validation_csv_paths(run_dir)
 
     observation_rows = _read_observation_rows(observation_csv_path)
     summary_rows = _read_summary_rows(summary_csv_path)
@@ -425,18 +519,18 @@ def main() -> None:
     missing_rate = 0.0 if n_total_observations == 0 else n_missing_observations / n_total_observations
     censored_rate = 0.0 if n_total_observations == 0 else n_censored_observations / n_total_observations
 
-    print("Validation completed successfully.")
-    print(f"Run directory: {run_dir}")
-    print(f"Observation CSV read from: {observation_csv_path}")
-    print(f"Summary CSV read from: {summary_csv_path}")
-    print(f"Available observations: {n_available_observations} / {n_total_observations}")
-    print(f"Missing rate: {missing_rate:.3f}")
-    print(f"Censored rate: {censored_rate:.3f}")
-    print(f"Peak outlet discharge: {system['caudal_maximo_salida_periodo_m3s']:.6f} m3/s")
-    print(f"Accumulated precipitation over period: {system['precipitacion_acumulada_periodo_mm_dt']:.6f} mm/dt")
-    print(f"Accumulated PET over period: {system['pet_acumulada_periodo_mm_dt']:.6f} mm/dt")
-    print(f"Accumulated AET over period: {system['aet_acumulada_periodo_mm_dt']:.6f} mm/dt")
-    print(f"Validation outputs written to: {output_dir}")
+    print("Validación completada correctamente.")
+    print(f"Directorio de ejecución: {run_dir}")
+    print(f"CSV de observaciones leído desde: {observation_csv_path}")
+    print(f"CSV de resumen leído desde: {summary_csv_path}")
+    print(f"Observaciones disponibles: {n_available_observations} / {n_total_observations}")
+    print(f"Tasa de observaciones faltantes: {missing_rate:.3f}")
+    print(f"Tasa de observaciones censuradas: {censored_rate:.3f}")
+    print(f"Caudal máximo de salida: {system['caudal_maximo_salida_periodo_m3s']:.6f} m3/s")
+    print(f"Precipitación acumulada del periodo: {system['precipitacion_acumulada_periodo_mm_dt']:.6f} mm/dt")
+    print(f"PET acumulada del periodo: {system['pet_acumulada_periodo_mm_dt']:.6f} mm/dt")
+    print(f"AET acumulada del periodo: {system['aet_acumulada_periodo_mm_dt']:.6f} mm/dt")
+    print(f"Salidas de validación escritas en: {output_dir}")
 
 
 if __name__ == "__main__":

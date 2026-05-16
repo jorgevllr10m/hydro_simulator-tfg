@@ -40,13 +40,13 @@ from simulator.routing.network import build_simplified_drainage_network
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hydro-sim",
-        description="Run the current simulator pipeline from a YAML configuration file.",
+        description="Ejecuta el pipeline actual del simulador desde un archivo de configuración YAML.",
     )
     parser.add_argument(
         "--config",
         type=Path,
         default=Path("configs/config.yaml"),
-        help="Path to the master YAML configuration file.",
+        help="Ruta al archivo YAML de configuración principal.",
     )
     return parser
 
@@ -346,18 +346,18 @@ def main() -> None:
     summary_rows: list[dict[str, object]] = []
     observation_rows: list[dict[str, object]] = []
 
-    print("Synthetic Basin Simulator")
-    print(f"Configuration path: {loaded.config_path}")
-    print(f"Run name: {loaded.run_name}")
-    print(f"Domain preset: {loaded.domain_preset_name}")
-    print(f"Scenario name: {loaded.scenario_name}")
-    print(f"Output directory: {run_output_dir}")
-    print(f"Spatial shape: {domain.shape}")
-    print(f"Time steps: {domain.n_steps}")
+    print("Simulador Sintético de Cuenca")
+    print(f"Ruta de configuración: {loaded.config_path}")
+    print(f"Nombre del run: {loaded.run_name}")
+    print(f"Preset del dominio: {loaded.domain_preset_name}")
+    print(f"Nombre del escenario: {loaded.scenario_name}")
+    print(f"Directorio de salida: {run_output_dir}")
+    print(f"Forma espacial: {domain.shape}")
+    print(f"Pasos temporales: {domain.n_steps}")
     print(f"dt_seconds: {domain.time.dt_seconds}")
-    print(f"Reservoirs in domain: {len(domain.reservoirs)}")
-    print(f"Reservoir regulation enabled: {routing_config.enable_reservoirs}")
-    print(f"Sensors in domain: {len(domain.sensors)}")
+    print(f"Embalses en el dominio: {len(domain.reservoirs)}")
+    print(f"Regulación de embalses activada: {routing_config.enable_reservoirs}")
+    print(f"Sensores en el dominio: {len(domain.sensors)}")
 
     for step in range(domain.n_steps):
         timestamp = domain.time.timestamps[step]
@@ -511,22 +511,22 @@ def main() -> None:
         )
 
         print(
-            f"[step={step:03d}] "
-            f"regime={diagnostics.latent_state.regime.value} | "
-            f"new={diagnostics.n_new_storms} | "
-            f"tracked={diagnostics.n_active_storms} | "
-            f"band={int(diagnostics.band_reorganization_applied)} | "
-            f"band_births={diagnostics.band_births_count} | "
+            f"[paso={step:03d}] "
+            f"regimen={diagnostics.latent_state.regime.value} | "
+            f"nuevas={diagnostics.n_new_storms} | "
+            f"activas={diagnostics.n_active_storms} | "
+            f"banda={int(diagnostics.band_reorganization_applied)} | "
+            f"nacimientos_banda={diagnostics.band_births_count} | "
             f"precip_max={meteo_output.precipitation.max():.3f} mm/dt | "
-            f"pet_mean={energy_output.pet.mean():.3f} mm/dt | "
-            f"aet_mean={hydro_output.aet.mean():.3f} mm/dt | "
-            f"soil_mean={hydro_output.soil_moisture.mean():.3f} mm | "
-            f"runoff_mean={hydro_output.surface_runoff.mean():.3f} mm/dt | "
-            f"channel_mean={routing_output.channel_flow_m3s.mean():.3f} m3/s | "
-            f"outlet={routing_output.outlet_discharge_m3s:.3f} m3/s | "
-            f"obs_avail={observation_diagnostics.n_available} | "
-            f"obs_missing={observation_diagnostics.n_missing} | "
-            f"obs_censored={observation_diagnostics.n_censored}"
+            f"pet_media={energy_output.pet.mean():.3f} mm/dt | "
+            f"aet_media={hydro_output.aet.mean():.3f} mm/dt | "
+            f"humedad_suelo_media={hydro_output.soil_moisture.mean():.3f} mm | "
+            f"escorrentia_media={hydro_output.surface_runoff.mean():.3f} mm/dt | "
+            f"caudal_cauce_medio={routing_output.channel_flow_m3s.mean():.3f} m3/s | "
+            f"salida={routing_output.outlet_discharge_m3s:.3f} m3/s | "
+            f"obs_disponibles={observation_diagnostics.n_available} | "
+            f"obs_faltantes={observation_diagnostics.n_missing} | "
+            f"obs_censuradas={observation_diagnostics.n_censored}"
         )
 
     scenario_suffix = loaded.scenario_name
@@ -568,11 +568,11 @@ def main() -> None:
         column_names=OBSERVATION_COLUMN_NAMES_ES,
     )
 
-    print("Run completed successfully.")
-    print(f"Truth dataset written to: {truth_dataset_path}")
-    print(f"Observation dataset written to: {observation_dataset_path}")
-    print(f"Step summary CSV: {summary_csv_path}")
-    print(f"Observation CSV: {observation_csv_path}")
+    print("Run completado correctamente.")
+    print(f"Dataset de verdad escrito en: {truth_dataset_path}")
+    print(f"Dataset de observaciones escrito en: {observation_dataset_path}")
+    print(f"CSV de resumen por paso: {summary_csv_path}")
+    print(f"CSV de observaciones: {observation_csv_path}")
 
 
 if __name__ == "__main__":

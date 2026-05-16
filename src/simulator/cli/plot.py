@@ -15,19 +15,19 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser for figure generation."""
     parser = argparse.ArgumentParser(
         prog="hydro-sim-plot",
-        description="Generate figures from one existing simulator run.",
+        description="Genera figuras a partir de una ejecución existente del simulador.",
     )
     parser.add_argument(
         "--run-dir",
         type=Path,
         required=True,
-        help="Path to one run output directory, e.g. outputs/runs/base_run",
+        help="Ruta a un directorio de salida de una ejecución, por ejemplo outputs/runs/base_run",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Optional figure output directory. Defaults to <run-dir>/figures",
+        help="Directorio opcional de salida de figuras. Por defecto: <run-dir>/figures",
     )
     return parser
 
@@ -51,7 +51,7 @@ def _parse_csv_int(value: str) -> int:
     text = value.strip()
 
     if text == "":
-        raise ValueError("Cannot parse empty string as int")
+        raise ValueError("No se puede interpretar una cadena vacía como entero")
 
     return int(text)
 
@@ -59,7 +59,7 @@ def _parse_csv_int(value: str) -> int:
 def _read_semicolon_csv(path: Path) -> list[dict[str, str]]:
     """Read one project CSV file using ';' as delimiter."""
     if not path.exists():
-        raise FileNotFoundError(f"Required CSV file not found: {path}")
+        raise FileNotFoundError(f"No se encontró el archivo CSV requerido: {path}")
 
     with path.open("r", newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file, delimiter=";")
@@ -90,7 +90,10 @@ def _read_summary_rows(path: Path) -> list[dict[str, object]]:
                 "band_births_count": _parse_csv_int(row["band_births_count"]),
                 "band_probability": _parse_csv_float(row["band_probability"]),
                 "storm_mask_active_cells": _parse_csv_int(row["storm_mask_active_cells"]),
+                "air_temperature_min_c": _parse_csv_float(row["air_temperature_min_c"]),
                 "air_temperature_mean_c": _parse_csv_float(row["air_temperature_mean_c"]),
+                "air_temperature_max_c": _parse_csv_float(row["air_temperature_max_c"]),
+                "air_temperature_range_c": _parse_csv_float(row["air_temperature_range_c"]),
                 "pet_mean_mm_dt": _parse_csv_float(row["pet_mean_mm_dt"]),
                 "shortwave_radiation_mean_w_m2": _parse_csv_float(row["shortwave_radiation_mean_w_m2"]),
                 "net_radiation_mean_mj_m2_dt": _parse_csv_float(row["net_radiation_mean_mj_m2_dt"]),
@@ -141,22 +144,105 @@ def _read_observation_rows(path: Path) -> list[dict[str, object]]:
     return parsed_rows
 
 
+def _resolve_single_matching_file(
+    run_dir: Path,
+    *,
+    canonical_names: tuple[str, ...],
+    glob_patterns: tuple[str, ...],
+    excluded_stem_suffixes: tuple[str, ...] = (),
+) -> Path:
+    """Resolve one run artifact from canonical names or scenario-suffixed patterns."""
+    for name in canonical_names:
+        path = run_dir / name
+        if path.exists():
+            return path
+
+    candidates: set[Path] = set()
+    for pattern in glob_patterns:
+        candidates.update(run_dir.glob(pattern))
+
+    filtered_candidates = sorted(
+        path for path in candidates if path.is_file() and not any(path.stem.endswith(suffix) for suffix in excluded_stem_suffixes)
+    )
+
+    if not filtered_candidates:
+        expected = ", ".join(canonical_names + glob_patterns)
+        raise FileNotFoundError(f"No se encontró ningún artefacto de ejecución en {run_dir}. Esperado: {expected}")
+
+    if len(filtered_candidates) > 1:
+        candidates_text = "\n".join(f"- {path}" for path in filtered_candidates)
+        raise RuntimeError(
+            "Se encontraron varios artefactos de ejecución compatibles. "
+            "Usa un directorio con un único escenario o se más preciso.\n"
+            f"{candidates_text}"
+        )
+
+    return filtered_candidates[0]
+
+
+def _resolve_csv_for_scenario(
+    run_dir: Path,
+    *,
+    base_stem: str,
+    scenario_name: str | None,
+) -> Path:
+    """Resolve the English CSV matching the scenario stored in the truth dataset."""
+    if scenario_name:
+        scenario_path = run_dir / f"{base_stem}_{scenario_name}.csv"
+        if scenario_path.exists():
+            return scenario_path
+
+        legacy_path = run_dir / f"{base_stem}.csv"
+        if legacy_path.exists():
+            return legacy_path
+
+        raise FileNotFoundError(
+            f"No se encontró el CSV para el escenario {scenario_name!r}. "
+            f"Se esperaba {scenario_path} o el archivo heredado {legacy_path}"
+        )
+
+    return _resolve_single_matching_file(
+        run_dir,
+        canonical_names=(f"{base_stem}.csv",),
+        glob_patterns=(f"{base_stem}_*.csv",),
+        excluded_stem_suffixes=("_es",),
+    )
+
+
 def _load_truth_dataset(run_dir: Path) -> tuple[xr.Dataset, Path]:
     """Load the truth dataset from NetCDF or pickle."""
-    netcdf_path = run_dir / "simulation_truth.nc"
-    pickle_path = run_dir / "simulation_truth.pkl"
+    dataset_path = _resolve_single_matching_file(
+        run_dir,
+        canonical_names=(
+            "simulation_truth.nc",
+            "simulation_truth.pkl",
+        ),
+        glob_patterns=(
+            "simulation_truth_*.nc",
+            "simulation_truth_*.pkl",
+        ),
+    )
 
-    if netcdf_path.exists():
-        return xr.open_dataset(netcdf_path), netcdf_path
+    if dataset_path.suffix == ".nc":
+        return xr.open_dataset(dataset_path), dataset_path
 
-    if pickle_path.exists():
-        with pickle_path.open("rb") as file:
+    if dataset_path.suffix == ".pkl":
+        with dataset_path.open("rb") as file:
             ds = pickle.load(file)
-        if not isinstance(ds, xr.Dataset):
-            raise TypeError(f"Pickle file does not contain an xarray.Dataset: {pickle_path}")
-        return ds, pickle_path
 
-    raise FileNotFoundError(f"Truth dataset not found. Expected one of: {netcdf_path} or {pickle_path}")
+        if not isinstance(ds, xr.Dataset):
+            raise TypeError(f"El archivo pickle no contiene un xarray.Dataset: {dataset_path}")
+
+        return ds, dataset_path
+
+    raise ValueError(f"Formato de dataset de verdad no soportado: {dataset_path}")
+
+
+SENSOR_TYPE_LABELS_ES: dict[str, str] = {
+    "precipitation": "precipitación",
+    "discharge": "caudal",
+    "reservoir_storage": "almacenamiento en embalse",
+}
 
 
 def _safe_filename(text: str) -> str:
@@ -165,6 +251,17 @@ def _safe_filename(text: str) -> str:
     normalized = re.sub(r"\s+", "_", normalized)
     normalized = re.sub(r"[^a-z0-9_]+", "", normalized)
     return normalized or "unnamed"
+
+
+def _format_sensor_name_for_plot(sensor_name: str) -> str:
+    """Return a human-friendly sensor name for plot titles."""
+    return sensor_name.strip().replace("_", " ")
+
+
+def _format_sensor_type_for_plot(sensor_type: str) -> str:
+    """Return a Spanish sensor-type label for plot titles."""
+    normalized = sensor_type.strip().lower()
+    return SENSOR_TYPE_LABELS_ES.get(normalized, sensor_type)
 
 
 def _save_field_plot(
@@ -225,15 +322,15 @@ def _save_sensor_truth_vs_observed_plot(
     observed = np.asarray([float(row["observed_value"]) for row in rows_sorted], dtype=float)
 
     first = rows_sorted[0]
-    sensor_name = str(first["sensor_name"])
-    sensor_type = str(first["sensor_type"])
+    sensor_name = _format_sensor_name_for_plot(str(first["sensor_name"]))
+    sensor_type = _format_sensor_type_for_plot(str(first["sensor_type"]))
 
     plt.figure(figsize=(9, 4.5))
-    plt.plot(steps, truth, label="truth")
-    plt.plot(steps, observed, label="observed")
-    plt.title(f"Truth vs observed - {sensor_name} ({sensor_type})")
-    plt.xlabel("step")
-    plt.ylabel("value")
+    plt.plot(steps, truth, label="verdad")
+    plt.plot(steps, observed, label="observado")
+    plt.title(f"Verdad vs observado - {sensor_name} ({sensor_type})")
+    plt.xlabel("paso")
+    plt.ylabel("valor")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
@@ -277,67 +374,67 @@ def _generate_field_plots(
 
     _save_field_plot(
         accumulated_precipitation,
-        title="Accumulated precipitation",
+        title="Precipitación acumulada",
         output_path=fields_dir / "accumulated_precipitation.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_background_precipitation,
-        title="Accumulated background precipitation",
+        title="Precipitación de fondo acumulada",
         output_path=fields_dir / "accumulated_background_precipitation.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_pet,
-        title="Accumulated PET",
+        title="PET acumulada",
         output_path=fields_dir / "accumulated_pet.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_aet,
-        title="Accumulated AET",
+        title="AET acumulada",
         output_path=fields_dir / "accumulated_aet.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_infiltration,
-        title="Accumulated infiltration",
+        title="Infiltración acumulada",
         output_path=fields_dir / "accumulated_infiltration.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_surface_runoff,
-        title="Accumulated surface runoff",
+        title="Escorrentía superficial acumulada",
         output_path=fields_dir / "accumulated_surface_runoff.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         accumulated_subsurface_runoff,
-        title="Accumulated subsurface runoff",
+        title="Escorrentía subsuperficial acumulada",
         output_path=fields_dir / "accumulated_subsurface_runoff.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         mean_soil_moisture,
-        title="Mean soil moisture",
+        title="Humedad media del suelo",
         output_path=fields_dir / "mean_soil_moisture.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         final_soil_moisture,
-        title="Final soil moisture",
+        title="Humedad final del suelo",
         output_path=fields_dir / "final_soil_moisture.png",
         colorbar_label="mm",
     )
     _save_field_plot(
         mean_shortwave_radiation,
-        title="Mean shortwave radiation",
+        title="Radiación de onda corta media",
         output_path=fields_dir / "mean_shortwave_radiation.png",
         colorbar_label="W/m2",
     )
     _save_field_plot(
         mean_net_radiation,
-        title="Mean net radiation",
+        title="Radiación neta media",
         output_path=fields_dir / "mean_net_radiation.png",
         colorbar_label="MJ/m2/dt",
     )
@@ -365,13 +462,13 @@ def _generate_peak_step_plots(
 
         _save_field_plot(
             precipitation[peak_precip_step],
-            title=f"Precipitation at peak step {peak_precip_step}",
+            title=f"Paso de máxima precipitación: {peak_precip_step}",
             output_path=fields_dir / "step_peak_precipitation.png",
             colorbar_label="mm/dt",
         )
         _save_field_plot(
             storm_mask[peak_precip_step].astype(float),
-            title=f"Storm mask at peak precipitation step {peak_precip_step}",
+            title=f"Máscara de tormenta en el paso de máxima precipitacion - Paso: {peak_precip_step}",
             output_path=fields_dir / "step_peak_storm_mask.png",
             colorbar_label="1",
         )
@@ -381,25 +478,25 @@ def _generate_peak_step_plots(
 
         _save_field_plot(
             surface_runoff[peak_runoff_step],
-            title=f"Surface runoff at peak step {peak_runoff_step}",
+            title=f"Paso de máxima escorrentía superficial: {peak_runoff_step}",
             output_path=fields_dir / "step_peak_surface_runoff.png",
             colorbar_label="mm/dt",
         )
         _save_field_plot(
             infiltration[peak_runoff_step],
-            title=f"Infiltration at peak runoff step {peak_runoff_step}",
+            title=f"Infiltración en el paso de máxima escorrentía superficial - Paso: {peak_runoff_step}",
             output_path=fields_dir / "step_peak_infiltration.png",
             colorbar_label="mm/dt",
         )
         _save_field_plot(
             soil_moisture[peak_runoff_step],
-            title=f"Soil moisture at peak runoff step {peak_runoff_step}",
+            title=f"Humedad del suelo en el paso de máxima escorrentía superficial - Paso: {peak_runoff_step}",
             output_path=fields_dir / "step_peak_runoff_soil_moisture.png",
             colorbar_label="mm",
         )
         _save_field_plot(
             channel_flow[peak_runoff_step],
-            title=f"Channel flow at peak runoff step {peak_runoff_step}",
+            title=f"Caudal en el cauce en el paso de máxima escorrentía superficial - Paso: {peak_runoff_step}",
             output_path=fields_dir / "step_peak_channel_flow.png",
             colorbar_label="m3/s",
         )
@@ -412,13 +509,13 @@ def _generate_peak_step_plots(
 
             _save_field_plot(
                 precipitation[first_band_step],
-                title=f"Precipitation at first band step {first_band_step}",
+                title=f"Precipitación en primer paso con organización en banda - Paso: {first_band_step}",
                 output_path=fields_dir / "step_first_band_precipitation.png",
                 colorbar_label="mm/dt",
             )
             _save_field_plot(
                 storm_mask[first_band_step].astype(float),
-                title=f"Storm mask at first band step {first_band_step}",
+                title=f"Máscara de tormenta en primer paso con organización en banda - Paso: {first_band_step}",
                 output_path=fields_dir / "step_first_band_storm_mask.png",
                 colorbar_label="1",
             )
@@ -453,99 +550,99 @@ def _generate_summary_plots(
             step_index,
             values,
             title=title,
-            xlabel="step",
+            xlabel="paso",
             ylabel=ylabel,
             output_path=summary_dir / filename,
         )
 
     _plot_row_series(
         "precipitation_max_mm_dt",
-        title="Maximum precipitation per step",
+        title="Precipitación máxima por paso temporal",
         ylabel="mm/dt",
         filename="precipitation_max_timeseries.png",
     )
     _plot_row_series(
         "background_fraction_of_total",
-        title="Background fraction of total precipitation",
-        ylabel="fraction",
+        title="Fracción de precipitación de fondo sobre el total por paso temporal",
+        ylabel="fracción",
         filename="background_fraction_timeseries.png",
     )
     _plot_row_series(
         "band_reorganization_applied",
-        title="Band reorganization applied",
+        title="Aplicación de reorganización en banda por paso temporal",
         ylabel="0/1",
         filename="band_reorganization_timeseries.png",
     )
     _plot_row_series(
         "pet_mean_mm_dt",
-        title="Mean PET per step",
+        title="PET media por paso temporal",
         ylabel="mm/dt",
         filename="pet_mean_timeseries.png",
     )
     _plot_row_series(
         "aet_mean_mm_dt",
-        title="Mean AET per step",
+        title="AET media por paso temporal",
         ylabel="mm/dt",
         filename="aet_mean_timeseries.png",
     )
     _plot_row_series(
         "soil_moisture_mean_mm",
-        title="Mean soil moisture per step",
+        title="Humedad media del suelo por paso temporal",
         ylabel="mm",
         filename="soil_moisture_mean_timeseries.png",
     )
     _plot_row_series(
         "infiltration_sum_mm_dt",
-        title="Total infiltration per step",
+        title="Infiltración total por paso temporal",
         ylabel="mm/dt",
         filename="infiltration_sum_timeseries.png",
     )
     _plot_row_series(
         "surface_runoff_sum_mm_dt",
-        title="Total surface runoff per step",
+        title="Escorrentía superficial total por paso temporal",
         ylabel="mm/dt",
         filename="surface_runoff_sum_timeseries.png",
     )
     _plot_row_series(
         "subsurface_runoff_sum_mm_dt",
-        title="Total subsurface runoff per step",
+        title="Escorrentía subsuperficial total por paso temporal",
         ylabel="mm/dt",
         filename="subsurface_runoff_sum_timeseries.png",
     )
     _plot_row_series(
         "shortwave_radiation_mean_w_m2",
-        title="Mean shortwave radiation per step",
+        title="Radiación de onda corta media por paso temporal",
         ylabel="W/m2",
         filename="shortwave_radiation_mean_timeseries.png",
     )
     _plot_row_series(
         "net_radiation_mean_mj_m2_dt",
-        title="Mean net radiation per step",
+        title="Radiación neta media por paso temporal",
         ylabel="MJ/m2/dt",
         filename="net_radiation_mean_timeseries.png",
     )
     _plot_row_series(
         "channel_flow_mean_m3s",
-        title="Mean channel flow per step",
+        title="Caudal medio en el cauce por paso temporal",
         ylabel="m3/s",
         filename="channel_flow_mean_timeseries.png",
     )
     _plot_row_series(
         "outlet_discharge_m3s",
-        title="Outlet discharge per step",
+        title="Caudal en la celda de salida por paso temporal",
         ylabel="m3/s",
         filename="outlet_discharge_timeseries.png",
     )
     _plot_row_series(
         "reservoir_storage_sum_m3",
-        title="Total reservoir storage over time",
+        title="Almacenamiento total en embalses por paso temporal",
         ylabel="m3",
         filename="reservoir_storage_total_timeseries.png",
     )
     _plot_row_series(
         "obs_available_count",
-        title="Available observations per step",
-        ylabel="count",
+        title="Observaciones disponibles por paso temporal",
+        ylabel="número",
         filename="observations_available_timeseries.png",
     )
 
@@ -581,11 +678,26 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     truth_ds, truth_dataset_path = _load_truth_dataset(run_dir)
-    summary_csv_path = run_dir / "simulation_summary.csv"
-    observation_csv_path = run_dir / "simulation_observations.csv"
+    scenario_name_raw = truth_ds.attrs.get("scenario_name")
+    scenario_name = str(scenario_name_raw).strip() if scenario_name_raw is not None else None
+
+    summary_csv_path = _resolve_csv_for_scenario(
+        run_dir,
+        base_stem="simulation_summary",
+        scenario_name=scenario_name,
+    )
+
+    observation_csv_path = _resolve_csv_for_scenario(
+        run_dir,
+        base_stem="simulation_observations",
+        scenario_name=scenario_name,
+    )
 
     summary_rows = _read_summary_rows(summary_csv_path)
     observation_rows = _read_observation_rows(observation_csv_path)
+
+    print("Generando gráficas...")
+    print("Tardo poco pero puedes aprovechar a tomar un café.")
 
     _generate_field_plots(
         truth_ds=truth_ds,
@@ -605,12 +717,12 @@ def main() -> None:
         output_dir=output_dir,
     )
 
-    print("Figure generation completed successfully.")
-    print(f"Run directory: {run_dir}")
-    print(f"Truth dataset read from: {truth_dataset_path}")
-    print(f"Summary CSV read from: {summary_csv_path}")
-    print(f"Observation CSV read from: {observation_csv_path}")
-    print(f"Figures written to: {output_dir}")
+    print("Generación de figuras completada correctamente.")
+    print(f"Directorio de ejecución: {run_dir}")
+    print(f"Dataset de verdad leído desde: {truth_dataset_path}")
+    print(f"CSV de resumen leído desde: {summary_csv_path}")
+    print(f"CSV de observaciones leído desde: {observation_csv_path}")
+    print(f"Figuras escritas en: {output_dir}")
 
 
 if __name__ == "__main__":
